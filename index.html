@@ -354,38 +354,6 @@ canvas{display:block}
 @media (max-width:620px){.features-grid{grid-template-columns:1fr}}
 
 /* ============================================================
-   7. 评价轮播
-   ============================================================ */
-.reviews{padding:78px 0}
-.review-shell{position:relative;max-width:860px;margin:0 auto}
-.review-viewport{overflow:hidden;border-radius:var(--r-lg);cursor:grab}
-.review-viewport.dragging{cursor:grabbing}
-.review-track{display:flex;transition:transform .65s var(--ease-out);will-change:transform}
-.review-track.no-anim{transition:none}
-.review-slide{flex:0 0 100%;padding:4px}
-.review-card{
-  padding:34px 36px;border-radius:var(--r-lg);background:var(--glass);border:1px solid var(--line);
-  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-}
-.review-stars{display:flex;gap:3px;margin-bottom:18px}
-.review-stars svg{width:16px;height:16px;color:var(--warn)}
-.review-quote{font-size:clamp(15.5px,1.7vw,18px);line-height:1.8;color:var(--t1)}
-.review-who{display:flex;align-items:center;gap:13px;margin-top:24px}
-.review-avatar{
-  display:grid;place-items:center;width:42px;height:42px;border-radius:50%;
-  font-weight:700;font-size:15px;color:#06121F;
-  background:linear-gradient(135deg,var(--brand),var(--brand-2));
-}
-.review-name{font-weight:600;font-size:14.5px}
-.review-role{color:var(--t3);font-size:12.5px}
-.review-dots{display:flex;justify-content:center;gap:8px;margin-top:22px}
-.review-dots button{
-  width:8px;height:8px;padding:0;border:0;border-radius:50%;background:var(--line-2);cursor:pointer;
-  transition:transform .3s var(--ease),opacity .3s var(--ease);
-}
-.review-dots button.active{background:var(--brand);transform:scale(1.35)}
-
-/* ============================================================
    8. FAQ
    ============================================================ */
 .faq{padding:78px 0}
@@ -407,31 +375,6 @@ canvas{display:block}
 .faq-body>div{overflow:hidden}
 .faq-a{padding:0 22px 20px;color:var(--t2);font-size:14.5px;line-height:1.8;opacity:0;transform:translateY(-4px);transition:opacity .3s var(--ease) .08s,transform .3s var(--ease) .08s}
 .faq-item.open .faq-a{opacity:1;transform:none}
-
-/* ============================================================
-   9. 订阅
-   ============================================================ */
-.subscribe{padding:78px 0 96px}
-.sub-card{
-  position:relative;max-width:880px;margin:0 auto;padding:54px 44px;text-align:center;overflow:hidden;
-  border-radius:calc(var(--r-lg) + 6px);border:1px solid var(--line);background:var(--glass);
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:var(--shadow);
-}
-.sub-card::before{
-  content:"";position:absolute;inset:-40%;pointer-events:none;
-  background:radial-gradient(closest-side,var(--bubble-a),transparent 70%);
-}
-.sub-card>*{position:relative}
-.sub-card h2{font-size:clamp(24px,3.2vw,34px);font-weight:800}
-.sub-card p{margin-top:12px;color:var(--t2)}
-.sub-form{display:flex;gap:12px;max-width:460px;margin:30px auto 0}
-.sub-form input{
-  flex:1;min-width:0;padding:13px 18px;border-radius:var(--r-pill);border:1px solid var(--line-2);
-  background:var(--glass-2);font-size:14.5px;color:var(--t1);outline:none;
-}
-.sub-form input::placeholder{color:var(--t3)}
-.sub-note{margin-top:16px;color:var(--t3);font-size:12.5px}
-@media (max-width:560px){.sub-form{flex-direction:column}}
 
 /* ============================================================
    9.5 联系区
@@ -5990,81 +5933,6 @@ if ('IntersectionObserver' in window) {
 }
 
 /* ============================================================
-   4. 评价轮播（自动播放 + 拖拽切换）
-   ============================================================ */
-(function initReviews() {
-  var viewport = $('review-viewport');
-  var track = $('review-track');
-  var dotsWrap = $('review-dots');
-  if (!viewport || !track || !dotsWrap) return;
-  var slides = track.children.length;
-  var idx = 0, timer = null;
-
-  for (var i = 0; i < slides; i++) {
-    var b = document.createElement('button');
-    b.setAttribute('aria-label', '第 ' + (i + 1) + ' 条评价');
-    (function (k) { b.addEventListener('click', function () { go(k); restart(); }); })(i);
-    dotsWrap.appendChild(b);
-  }
-  function updateDots() {
-    Array.prototype.forEach.call(dotsWrap.children, function (d, i) {
-      d.classList.toggle('active', i === idx);
-    });
-  }
-  function go(i, instant) {
-    idx = ((i % slides) + slides) % slides;
-    if (instant) {
-      track.classList.add('no-anim');
-      track.style.transform = 'translateX(' + (-idx * 100) + '%)';
-      requestAnimationFrame(function () { track.classList.remove('no-anim'); });
-    } else {
-      track.style.transform = 'translateX(' + (-idx * 100) + '%)';
-    }
-    updateDots();
-  }
-  function play() {
-    if (reduceMotion) return;
-    stop();
-    timer = setInterval(function () { go(idx + 1); }, 5200);
-  }
-  function stop() { if (timer) { clearInterval(timer); timer = null; } }
-  function restart() { stop(); play(); }
-
-  viewport.addEventListener('mouseenter', stop);
-  viewport.addEventListener('mouseleave', play);
-
-  /* 拖拽 */
-  var drag = null;
-  viewport.addEventListener('pointerdown', function (e) {
-    drag = { x0: e.clientX, dx: 0, id: e.pointerId };
-    try { viewport.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
-    viewport.classList.add('dragging');
-    track.classList.add('no-anim');
-    stop();
-  });
-  viewport.addEventListener('pointermove', function (e) {
-    if (!drag) return;
-    drag.dx = e.clientX - drag.x0;
-    track.style.transform = 'translateX(calc(' + (-idx * 100) + '% + ' + drag.dx + 'px))';
-  });
-  function endDrag() {
-    if (!drag) return;
-    track.classList.remove('no-anim');
-    viewport.classList.remove('dragging');
-    if (drag.dx < -56) go(idx + 1);
-    else if (drag.dx > 56) go(idx - 1);
-    else go(idx, true);
-    drag = null;
-    restart();
-  }
-  viewport.addEventListener('pointerup', endDrag);
-  viewport.addEventListener('pointercancel', endDrag);
-
-  go(0, true);
-  play();
-})();
-
-/* ============================================================
    5. FAQ 折叠（手风琴）
    ============================================================ */
 Array.prototype.forEach.call(document.querySelectorAll('.faq-item'), function (item) {
@@ -6078,31 +5946,6 @@ Array.prototype.forEach.call(document.querySelectorAll('.faq-item'), function (i
     if (!isOpen) item.classList.add('open');
   });
 });
-
-/* ============================================================
-   6. 订阅表单（loading + toast，纯前端演示）
-   ============================================================ */
-(function initSubscribe() {
-  var form = $('sub-form'), input = $('sub-email'), btn = $('sub-btn');
-  if (!form) return;
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var email = (input.value || '').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      if (G && G.toast) G.toast('请输入有效的邮箱地址', 'warn');
-      input.focus();
-      return;
-    }
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span><span>提交中</span>';
-    setTimeout(function () {
-      btn.disabled = false;
-      btn.innerHTML = '<span class="btn-label">订阅更新</span>';
-      input.value = '';
-      if (G && G.toast) G.toast('订阅成功，更新与教学模板会优先推送给你', 'ok');
-    }, 900);
-  });
-})();
 
 /* ============================================================
    6.5 联系方式（QQ 点击复制）
