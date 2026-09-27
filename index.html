@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- CSP：本地单文件需内联脚本与动态编译（unsafe-eval），但外发通道全部锁死（connect-src 'none'）。
+     注意：若部署为在线版，请改为 nonce/hash 方案并把表达式求值换成解释器，移除 unsafe-eval -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; font-src https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="description" content="几何工坊：面向高中数学教学的平面几何与立体几何可视化工作台。函数方程实时绘制、向量关系自动判定、面积体积距离二面角一键求解、参数滑块实时联动">
 <meta name="color-scheme" content="dark light">
 <title>几何工坊 · 高中数学几何教学工作台</title>
@@ -711,6 +714,8 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></symbol>
     <symbol id="i-rotate3d" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></symbol>
   </defs>
 </svg>
 
@@ -803,6 +808,12 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
           <button data-mode="solid">立体几何</button>
         </div>
         <div class="studio-actions">
+          <button class="btn btn-ghost btn-sm" id="btn-undo" title="撤销（Ctrl+Z）" disabled>
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-undo"/></svg><span class="btn-label">撤销</span>
+          </button>
+          <button class="btn btn-ghost btn-sm" id="btn-redo" title="重做（Ctrl+Shift+Z）" disabled>
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-redo"/></svg><span class="btn-label">重做</span>
+          </button>
           <select class="sel" id="sel-precision" aria-label="数值精度" title="数值显示精度">
             <option value="2">精度 2 位</option>
             <option value="3" selected>精度 3 位</option>
@@ -1088,7 +1099,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
       </div>
       <div class="faq-item reveal">
         <button class="faq-q">交点和距离是精确值吗？<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chev"/></svg></button>
-        <div class="faq-body"><div><p class="faq-a">直线与直线、圆与直线等可解析的情形用精确求解；一般曲线交点采用扫描加二分细化的数值方法，精度约百万分之一。极端参数下个别交点可能超出扫描范围，把视图缩小一些即可。</p></div></div>
+        <div class="faq-body"><div><p class="faq-a">直线与直线、圆与直线等可解析的情形用精确求解；一般曲线交点采用扫描加二分细化的数值方法，精度约百万分之一。交点只在当前视野范围内查找：若某个交点没显示，把视图<b>拉远</b>（滚轮向下缩小比例尺）让更大范围进入视野即可；若交点已可见、想让位置读数更精确，<b>放大</b>视图提高分辨率即可。</p></div></div>
       </div>
       <div class="faq-item reveal">
         <button class="faq-q">手机上能用吗？<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chev"/></svg></button>
@@ -1176,6 +1187,8 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
         <tr><td>触摸屏</td><td>单指平移或旋转，双指捏合缩放，双指拖动平移</td></tr>
         <tr><td>符号输入</td><td>输入框下方有符号条：√ ² | | ! [ ] ≤ ≥ ° 等一键插入，手机上也顺手</td></tr>
         <tr><td>命名的点</td><td>直接写 <span class="mono">P(1, 2)</span> 即可命名为 P；对象列表里点铅笔图标（或双击名字）可随时改名，关联图形名自动跟随（△ABC 改 A 为 P → △PBC）</td></tr>
+        <tr><td>撤销 / 重做</td><td>Ctrl+Z 撤销、Ctrl+Shift+Z（或 Ctrl+Y）重做，也可以点工具栏按钮；添加、删除、清空、拖动、改参数都能撤</td></tr>
+        <tr><td>自动保存</td><td>场景自动保存在本机浏览器里，关掉页面再打开会自动恢复；数据不上传任何地方</td></tr>
         <tr><td>选择</td><td>可同时选中最多 3 个对象；选中两点可连线、三点可定平面（立体模式）</td></tr>
       </table>
       <h4>四、默认约束（明确设定）</h4>
@@ -1183,7 +1196,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
         <tr><td>参数数量</td><td>8 个（a b c d f g h k）；滑块默认范围 [-5, 5]，步长 0.05，可手动输入精确值并自动扩展范围</td></tr>
         <tr><td>数值精度</td><td>默认 3 位小数，可切 2 / 4 / 6 位；内部计算使用双精度</td></tr>
         <tr><td>可绘制范围</td><td>平面视图半宽 0.2 至 500 之间自由缩放，超出会被限制</td></tr>
-        <tr><td>采样密度</td><td>显式函数逐像素采样；隐式方程 200×200 网格（拖动滑块时自动降密）；极坐标 1800 点；参数方程 2400 点</td></tr>
+        <tr><td>采样密度</td><td>显式函数逐像素采样；隐式方程为自适应网格（约每 6px 一格，上限 260×260，拖动时自动降密）；极坐标 1800 点；参数方程 2400 点</td></tr>
         <tr><td>曲线参数范围</td><td>极坐标 θ ∈ [0, 2π]；参数方程 t ∈ [-2π, 2π]</td></tr>
         <tr><td>曲面网格</td><td>48×48（拖动中 32×32），仅立体模式支持</td></tr>
         <tr><td>交点范围</td><td>显式×显式、显式×隐式、直线×任意曲线；隐式×隐式暂不支持</td></tr>
@@ -1743,7 +1756,7 @@ function parseInequality(L, op, R, display, mode) {
   var base = { fn: { eval: ev }, eval: ev, op: op, params: uniq(cL.params.concat(cR.params)), display: display };
   if (!hasX && !hasY) {
     base.kind = 'ineq0';
-    base.truth = INEQ[op](ev(0, 0, 0, 0, 0, {}));
+    base.truth = INEQ[op](ev(0, 0, 0, 0, 0, G.paramMap()));
     base.tip = base.truth ? '恒成立' : '恒不成立';
     return base;
   }
@@ -1988,26 +2001,32 @@ var Scene = G.Scene = {
     G.ensureParams(o);
     G.emit('objects');
     G.requestRender();
+    G.emit('changed');
     return o;
   },
-  remove: function (id) {
+  /* 删除（带环形依赖防护：_visited 防重复进入） */
+  remove: function (id, _visited) {
+    _visited = _visited || {};
+    if (_visited[id]) return;
+    _visited[id] = 1;
     var i = Scene.objs.findIndex(function (o) { return o.id === id; });
     if (i < 0) return;
-    var o = Scene.objs[i];
     Scene.objs.splice(i, 1);
     Scene.selection = Scene.selection.filter(function (s) { return s !== id; });
-    /* 级联：依赖被删点的图形一并删除 */
+    /* 级联：依赖被删对象的图形一并删除 */
     var dependedOn = Scene.objs.filter(function (x) {
       return x.pids && x.pids.indexOf(id) >= 0;
     });
-    dependedOn.forEach(function (x) { Scene.remove(x.id); });
+    dependedOn.forEach(function (x) { Scene.remove(x.id, _visited); });
     G.emit('objects'); G.emit('selection'); G.requestRender();
+    G.emit('changed');
   },
   clear: function (mode) {
     Scene.objs = Scene.objs.filter(function (o) { return (o.mode || 'plane') !== mode; });
     Scene.selection = [];
     Scene.counters = {};
     G.emit('objects'); G.emit('selection'); G.requestRender();
+    G.emit('changed');
   },
   byId: function (id) { return Scene.objs.find(function (o) { return o.id === id; }); },
   points: function (mode) {
@@ -2543,17 +2562,33 @@ function drawObjName(o, P) {
 function hexRgb(hex) {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 }
+/* 离屏 mask 缓存（复用一个 canvas + ImageData，避免每帧分配）
+   注意：新建 canvas 默认 300×150，必须显式设置尺寸，否则 drawImage 会按错误源区域拉伸 */
+var _maskCanvas = null, _maskCtx = null, _maskImg = null;
+function ensureMask(cw, ch) {
+  if (!_maskCanvas) {
+    _maskCanvas = document.createElement('canvas');
+    _maskCtx = _maskCanvas.getContext('2d');
+  }
+  if (_maskCanvas.width !== cw || _maskCanvas.height !== ch) {
+    _maskCanvas.width = cw;
+    _maskCanvas.height = ch;
+  }
+  if (!_maskImg || _maskImg.width !== cw || _maskImg.height !== ch) {
+    _maskImg = _maskCtx.createImageData(cw, ch);
+  }
+  return _maskImg;
+}
 /* 区域填充：低分辨率 mask + 双线性放大（边界自然柔化） */
 function drawIneqRegion(o, P) {
   var cell = (G.quality === 'fast') ? 12 : 8;
   var cw = Math.ceil(W / cell) + 1, ch = Math.ceil(H / cell) + 1;
-  var mask = document.createElement('canvas');
-  mask.width = cw; mask.height = ch;
-  var mc = mask.getContext('2d');
-  var img = mc.createImageData(cw, ch);
+  var img = ensureMask(cw, ch);
+  var d = img.data;
+  d.fill(0);
   var rgb = hexRgb(o.color);
   var test = G.INEQ[o.op] || function (v) { return v < 0; };
-  var d = img.data, i, j;
+  var i, j;
   for (j = 0; j < ch; j++) {
     for (i = 0; i < cw; i++) {
       var wp = s2w(i * cell + cell / 2, j * cell + cell / 2);
@@ -2564,11 +2599,12 @@ function drawIneqRegion(o, P) {
       }
     }
   }
-  mc.putImageData(img, 0, 0);
+  _maskCtx.putImageData(img, 0, 0);
   ctx.save();
   ctx.globalAlpha = 0.15 + (Scene.isSel(o.id) ? 0.08 : 0);
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(mask, 0, 0, cw * cell, ch * cell);
+  /* 9 参数形式：明确源区域为 (0,0,cw,ch)，避免整块 canvas 被拉伸 */
+  ctx.drawImage(_maskCanvas, 0, 0, cw, ch, 0, 0, cw * cell, ch * cell);
   ctx.restore();
 }
 /* 不等式边界（虚线） */
@@ -2597,15 +2633,29 @@ function drawIneq1(o, P) {
   var y0 = w2s(0, 0).y;
   ctx.save();
   ctx.strokeStyle = o.color;
+  ctx.fillStyle = o.color;
   ctx.lineWidth = Scene.isSel(o.id) ? 6 : 4.5;
   ctx.lineCap = 'round';
   ctx.globalAlpha = 0.92;
   res.segs.forEach(function (s) {
+    /* 端点超出视口（或无界 ±∞）时画箭头，避免被误读为有界区间 */
+    var leftOpen = !isFinite(s[0]) || s[0] < b.x0;
+    var rightOpen = !isFinite(s[1]) || s[1] > b.x1;
     var a = isFinite(s[0]) ? s[0] : b.x0, e = isFinite(s[1]) ? s[1] : b.x1;
     a = Math.max(a, b.x0 - 1); e = Math.min(e, b.x1 + 1);
     if (e <= a) return;
     var pa = w2s(a, 0), pb = w2s(e, 0);
     ctx.beginPath(); ctx.moveTo(pa.x, y0); ctx.lineTo(pb.x, y0); ctx.stroke();
+    function arrow(px2, dir) {
+      ctx.beginPath();
+      ctx.moveTo(px2 + dir * 9, y0);
+      ctx.lineTo(px2, y0 - 5.5);
+      ctx.lineTo(px2, y0 + 5.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (leftOpen) arrow(pa.x, -1);
+    if (rightOpen) arrow(pb.x, 1);
   });
   /* 根点（临界值） */
   ctx.fillStyle = C().pointFill;
@@ -3286,7 +3336,11 @@ function endPointer(e) {
     else if (hit.kind === 'object') Scene.toggleSel(hit.obj.id, downInfo.shift);
     else { Scene.setSel([]); }
   }
-  if (ptrs.size === 0) { drag = null; downInfo = null; G.quality = 'high'; G.syncParams(); G.emit('objects'); G.requestRender(); }
+  if (ptrs.size === 0) {
+    var wasDrag = drag && (drag.kind === 'handle' || drag.kind === 'object') && downInfo && downInfo.moved;
+    drag = null; downInfo = null; G.quality = 'high'; G.syncParams(); G.emit('objects'); G.requestRender();
+    if (wasDrag) G.emit('changed'); /* 拖动结束 → 记入撤销历史 */
+  }
   else if (ptrs.size === 1) { drag = null; downInfo = null; }
 }
 canvas.addEventListener('pointerup', endPointer);
@@ -4499,6 +4553,7 @@ G.pointer3D = function (type, e, p) {
     G.requestRender();
   } else if (type === 'up') {
     ptr3.delete(e.pointerId);
+    var wasDrag3 = false;
     if (st3 && (st3.kind === 'rot' || st3.kind === 'pan')) {
       /* 点击选中 */
       if (!st3.moved && st3.kind === 'rot') {
@@ -4506,13 +4561,16 @@ G.pointer3D = function (type, e, p) {
         if (hit) Scene.toggleSel(hit.id, e.shiftKey);
         else Scene.setSel([]);
       }
-    } else if (st3 && st3.kind === 'dragpt' && !st3.moved) {
-      Scene.toggleSel(st3.pt.id, e.shiftKey);
-    } else if (st3 && st3.kind === 'dragsolid' && !st3.moved) {
-      Scene.toggleSel(st3.solid.id, e.shiftKey);
+    } else if (st3 && st3.kind === 'dragpt') {
+      if (!st3.moved) Scene.toggleSel(st3.pt.id, e.shiftKey);
+      else wasDrag3 = true;
+    } else if (st3 && st3.kind === 'dragsolid') {
+      if (!st3.moved) Scene.toggleSel(st3.solid.id, e.shiftKey);
+      else wasDrag3 = true;
     }
     if (ptr3.size === 0) { st3 = null; G.quality = 'high'; G.emit('objects'); }
     G.requestRender();
+    if (wasDrag3) G.emit('changed'); /* 拖动点 / 几何体结束 → 记入撤销历史 */
   }
 };
 G.wheel3D = function (e) {
@@ -4651,6 +4709,10 @@ function addFuncStr(str, quiet) {
 function addPointStr(str, name, quiet) {
   limitCheck('point');
   var parsed = G.parsePointInput(str, Scene.mode);
+  /* 先登记用到的参数（默认值 1），再求值坐标：否则「清空场景后输入 P(a, 2)」会因参数尚未注册而失败 */
+  parsed.params.forEach(function (pn) {
+    if (!Scene.params[pn]) Scene.params[pn] = { value: 1, min: -5, max: 5, step: 0.05 };
+  });
   var P = G.paramMap();
   var vals = parsed.comps.map(function (c) { return c.eval(0, 0, 0, 0, 0, P); });
   if (!vals.every(isFinite)) throw new Error('坐标中含有无法求值的量');
@@ -4662,6 +4724,9 @@ function addPointStr(str, name, quiet) {
 }
 function addVecStr(str, quiet) {
   var parsed = G.parseVectorInput(str, Scene.mode);
+  parsed.params.forEach(function (pn) {
+    if (!Scene.params[pn]) Scene.params[pn] = { value: 1, min: -5, max: 5, step: 0.05 };
+  });
   var P = G.paramMap();
   var vals = parsed.comps.map(function (c) { return c.eval(0, 0, 0, 0, 0, P); });
   if (!vals.every(isFinite)) throw new Error('分量中含有无法求值的量');
@@ -4917,27 +4982,40 @@ function afterParamChange() {
 }
 function bindParamEvents() {
   var wrap = $('param-list');
+  var numTimer = null;
   wrap.addEventListener('input', function (e) {
     var t = e.target;
     if (!t.dataset || !t.dataset.p) return;
     var name = t.dataset.p, v = parseFloat(t.value);
     if (!isFinite(v)) return;
+    if (t.type === 'number') {
+      /* 数字输入：停敲 450ms 再应用，避免 "-12.5" 的中间态（-1、-12）引发抖动 */
+      clearTimeout(numTimer);
+      numTimer = setTimeout(function () {
+        G.setParam(name, v);
+        var rng = document.querySelector('#param-list input[type=range][data-p="' + name + '"]');
+        var def = Scene.params[name];
+        if (rng && def) { rng.min = def.min; rng.max = def.max; rng.value = def.value; }
+        afterParamChange();
+        G.emit('changed');
+      }, 450);
+      return;
+    }
     G.setParam(name, v);
     var row = t.closest('.param-row');
     if (row) {
-      var rng = row.querySelector('input[type=range]');
       var num = row.querySelector('input[type=number]');
-      var def = Scene.params[name];
-      if (t.type === 'range') { if (num) num.value = def.value; }
-      else { rng.min = def.min; rng.max = def.max; rng.value = def.value; }
+      var def2 = Scene.params[name];
+      if (num) num.value = def2.value;
     }
-    if (t.type === 'range') G.quality = 'fast';
+    G.quality = 'fast';
     afterParamChange();
   });
   wrap.addEventListener('change', function (e) {
     if (e.target.type === 'range') {
       G.quality = 'high';
       afterParamChange();
+      G.emit('changed'); /* 参数拖动结束 → 记入撤销历史 */
     }
   });
   wrap.addEventListener('pointerup', function () {
@@ -5378,6 +5456,223 @@ function renderAll() {
 }
 
 /* ============================================================
+   9.5 撤销 / 重做（快照式）与场景自动保存
+   ============================================================ */
+var hist = [], redoStack = [], histTimer = null, histReady = false, lastSig = '';
+var SNAP_SKIP = { _built: 1, _builtKey: 1, _solution: 1, _labelRow: 1, _pickVerts: 1, _mesh: 1, _meshKey: 1 };
+/* 深拷贝：编译对象（含 eval）不可变，共享引用；运行时缓存字段跳过 */
+function cloneVal(v) {
+  if (v === null || typeof v !== 'object') return v;
+  if (typeof v.eval === 'function') return v;
+  if (Array.isArray(v)) return v.map(cloneVal);
+  var c = {};
+  for (var k in v) {
+    if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+    if (SNAP_SKIP[k]) continue;
+    c[k] = cloneVal(v[k]);
+  }
+  return c;
+}
+function snapState() {
+  var s = {
+    objs: Scene.objs.map(cloneVal),
+    params: cloneVal(Scene.params),
+    colorIdx: Scene.colorIdx,
+    counters: cloneVal(Scene.counters),
+    nextId: Scene.nextId,
+    sel: Scene.selection.slice()
+  };
+  if (G.view2) s.view2 = { cx: G.view2.cx, cy: G.view2.cy, scale: G.view2.scale };
+  if (G.cam3) s.cam3 = { yaw: G.cam3.yaw, pitch: G.cam3.pitch, dist: G.cam3.dist, tx: G.cam3.tx, ty: G.cam3.ty, tz: G.cam3.tz };
+  return s;
+}
+function stateSig(s) {
+  return JSON.stringify(s.objs) + '|' + JSON.stringify(s.params) + '|' + s.nextId + '|' + s.colorIdx;
+}
+function applyState(s) {
+  Scene.objs = s.objs.map(cloneVal);
+  Scene.params = cloneVal(s.params);
+  Scene.colorIdx = s.colorIdx;
+  Scene.counters = cloneVal(s.counters);
+  Scene.nextId = s.nextId;
+  Scene.selection = (s.sel || []).filter(function (id) {
+    return Scene.objs.some(function (o) { return o.id === id; });
+  });
+  if (s.view2 && G.view2) { G.view2.cx = s.view2.cx; G.view2.cy = s.view2.cy; G.view2.scale = s.view2.scale; }
+  if (s.cam3 && G.cam3) {
+    for (var k in s.cam3) { if (Object.prototype.hasOwnProperty.call(s.cam3, k)) G.cam3[k] = s.cam3[k]; }
+  }
+  G.emit('objects'); G.emit('selection');
+  G.requestRender();
+  renderAll();
+}
+function pushHistNow() {
+  if (!histReady) return;
+  var s = snapState();
+  var sig = stateSig(s);
+  if (sig === lastSig) return; /* 无变化不重复入栈 */
+  lastSig = sig;
+  hist.push(s);
+  if (hist.length > 60) hist.shift();
+  redoStack = [];
+  updateHistButtons();
+}
+function undo() {
+  if (hist.length < 2) { toast('没有可撤销的操作', 'info'); return; }
+  redoStack.push(hist.pop());
+  var top = hist[hist.length - 1];
+  lastSig = stateSig(top);
+  applyState(top);
+  autosave();
+  updateHistButtons();
+  toast('已撤销', 'info');
+}
+function redo() {
+  if (!redoStack.length) { toast('没有可重做的操作', 'info'); return; }
+  var s = redoStack.pop();
+  hist.push(s);
+  lastSig = stateSig(s);
+  applyState(s);
+  autosave();
+  updateHistButtons();
+  toast('已重做', 'info');
+}
+function updateHistButtons() {
+  var u = $('btn-undo'), r = $('btn-redo');
+  if (u) u.disabled = hist.length < 2;
+  if (r) r.disabled = redoStack.length === 0;
+}
+G.undo = undo;
+G.redo = redo;
+
+/* ------- 场景序列化（只存"可重建描述"，不存编译函数本体） ------- */
+var AUTOSAVE_KEY = 'geo-scene-v2';
+function serializeScene() {
+  var out = {
+    v: 2, savedAt: Date.now(), mode: Scene.mode,
+    colorIdx: Scene.colorIdx, counters: Scene.counters, nextId: Scene.nextId,
+    params: Scene.params, objs: []
+  };
+  Scene.objs.forEach(function (o) {
+    var rec = null;
+    if (o.type === 'func' || o.type === 'surface') {
+      rec = { t: o.type, name: o.name, display: o.display, mode: o.mode };
+    } else if (o.type === 'point') {
+      rec = { t: 'point', name: o.name, x: o.x, y: o.y, z: o.z || 0, mode: o.mode };
+      if (o._expr) rec.expr = o._expr.map(function (c) { return c.src; });
+    } else if (o.type === 'vector') {
+      rec = { t: 'vector', name: o.name, ox: o.ox, oy: o.oy, oz: o.oz || 0, dx: o.dx, dy: o.dy, dz: o.dz || 0, mode: o.mode };
+      if (o._expr) rec.expr = o._expr.map(function (c) { return c.src; });
+    } else if (o.type === 'poly' || o.type === 'segment' || o.type === 'line' || o.type === 'plane3') {
+      rec = { t: o.type, name: o.name, kind: o.kind, pids: (o.pids || []).slice(), mode: o.mode };
+    } else if (o.type === 'circle') {
+      rec = { t: 'circle', name: o.name, cid: o.cid, r: o.r, fill: o.fill, mode: o.mode };
+    } else if (o.type === 'ellipse') {
+      rec = { t: 'ellipse', name: o.name, cid: o.cid, a: o.a, b: o.b, fill: o.fill, mode: o.mode };
+    } else if (o.type === 'sector') {
+      rec = { t: 'sector', name: o.name, cid: o.cid, r: o.r, a0: o.a0, a1: o.a1, fill: o.fill, mode: o.mode };
+    } else if (o.type === 'solid') {
+      rec = { t: 'solid', name: o.name, kind: o.kind, dims: o.dims, cx: o.cx || 0, cy: o.cy || 0, cz: o.cz || 0, mode: o.mode };
+    }
+    if (rec) {
+      rec.id = o.id;
+      rec.colorIdx = o.colorIdx;
+      rec.visible = o.visible;
+      out.objs.push(rec);
+    }
+  });
+  return out;
+}
+function deserializeScene(data) {
+  if (!data || !Array.isArray(data.objs)) return false;
+  var idMap = {}, list = [], n = 0;
+  Scene.nextId = Math.max(Scene.nextId, data.nextId || 0);
+  /* 点必须先于引用它们的图形恢复 */
+  var sorted = data.objs.slice().sort(function (a, b) {
+    return (a.t === 'point' ? 0 : 1) - (b.t === 'point' ? 0 : 1);
+  });
+  sorted.forEach(function (rec) {
+    try {
+      var o = null;
+      if (rec.t === 'func' || rec.t === 'surface') {
+        var parsed = G.parseEquation(rec.display, rec.mode || 'plane');
+        if (rec.t === 'surface' || parsed.kind === 'surfaceZ') {
+          o = { type: 'surface', mode: rec.mode || 'plane', name: rec.name, fn: parsed.fn, params: parsed.params, display: parsed.display };
+        } else {
+          o = { type: 'func', mode: rec.mode || 'plane', kind: parsed.kind, name: rec.name, params: parsed.params, display: parsed.display };
+          ['fn', 'xFn', 'yFn', 'eval', 'tip', 'op', 'truth'].forEach(function (k) { if (parsed[k] !== undefined) o[k] = parsed[k]; });
+        }
+      } else if (rec.t === 'point') {
+        o = { type: 'point', mode: rec.mode, name: rec.name, x: rec.x, y: rec.y, z: rec.z || 0, params: [] };
+        if (rec.expr && rec.expr.length) o._expr = rec.expr.map(function (s) { return G.compileExpr(s); });
+      } else if (rec.t === 'vector') {
+        o = { type: 'vector', mode: rec.mode, name: rec.name, ox: rec.ox, oy: rec.oy, oz: rec.oz || 0, dx: rec.dx, dy: rec.dy, dz: rec.dz || 0, params: [] };
+        if (rec.expr && rec.expr.length) o._expr = rec.expr.map(function (s) { return G.compileExpr(s); });
+      } else if (rec.t === 'poly' || rec.t === 'segment' || rec.t === 'line' || rec.t === 'plane3') {
+        o = { type: rec.t, mode: rec.mode, name: rec.name, kind: rec.kind,
+          pids: (rec.pids || []).map(function (id) { return idMap[id]; }).filter(function (x) { return x !== undefined; }) };
+      } else if (rec.t === 'circle') {
+        o = { type: 'circle', mode: rec.mode, name: rec.name, cid: idMap[rec.cid], r: rec.r, fill: rec.fill };
+      } else if (rec.t === 'ellipse') {
+        o = { type: 'ellipse', mode: rec.mode, name: rec.name, cid: idMap[rec.cid], a: rec.a, b: rec.b, fill: rec.fill };
+      } else if (rec.t === 'sector') {
+        o = { type: 'sector', mode: rec.mode, name: rec.name, cid: idMap[rec.cid], r: rec.r, a0: rec.a0, a1: rec.a1, fill: rec.fill };
+      } else if (rec.t === 'solid') {
+        o = { type: 'solid', mode: rec.mode, name: rec.name, kind: rec.kind, dims: rec.dims, cx: rec.cx || 0, cy: rec.cy || 0, cz: rec.cz || 0 };
+      }
+      if (!o) return;
+      /* 引用完整性检查（坏数据直接跳过） */
+      if ((o.type === 'poly' || o.type === 'segment' || o.type === 'line') && (!o.pids || o.pids.length < 2)) return;
+      if (o.type === 'plane3' && (!o.pids || o.pids.length < 3)) return;
+      if ((o.type === 'circle' || o.type === 'ellipse' || o.type === 'sector') && !o.cid) return;
+      o.id = Scene.nextId++;
+      if (rec.colorIdx !== undefined) { o.colorIdx = rec.colorIdx; o.color = G.colorOf(rec.colorIdx); }
+      else { o.colorIdx = G.nextColorIdx(); o.color = G.colorOf(o.colorIdx); }
+      o.visible = rec.visible !== false;
+      idMap[rec.id] = o.id;
+      list.push(o);
+      n++;
+    } catch (e) { /* 单条坏数据跳过 */ }
+  });
+  if (!n) return false;
+  Scene.objs = list;
+  Scene.selection = [];
+  Scene.params = {};
+  if (data.params) {
+    Object.keys(data.params).forEach(function (k) {
+      var p = data.params[k];
+      if (p && typeof p.value === 'number') {
+        Scene.params[k] = { value: p.value, min: p.min || -5, max: p.max || 5, step: p.step || 0.05 };
+      }
+    });
+  }
+  Scene.counters = data.counters || {};
+  if (data.colorIdx !== undefined) Scene.colorIdx = data.colorIdx;
+  G.syncParams();
+  return true;
+}
+function autosave() {
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeScene()));
+  } catch (e) { /* 配额或隐私模式：静默忽略 */ }
+}
+function tryRestoreScene() {
+  var raw = null;
+  try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return false; }
+  if (!raw) return false;
+  try {
+    var data = JSON.parse(raw);
+    if (!data || data.v !== 2 || !data.objs || !data.objs.length) return false;
+    if (!deserializeScene(data)) return false;
+    if (data.mode) Scene.mode = data.mode;
+    return true;
+  } catch (e) { return false; }
+}
+G.serializeScene = serializeScene;
+G.deserializeScene = deserializeScene;
+G.autosave = autosave;
+
+/* ============================================================
    10. 事件绑定与初始化
    ============================================================ */
 function bind() {
@@ -5462,6 +5757,17 @@ function bind() {
     renderSel();
     toast('精度已切换为 ' + this.value + ' 位小数', 'info');
   });
+  /* 撤销 / 重做 */
+  $('btn-undo').addEventListener('click', undo);
+  $('btn-redo').addEventListener('click', redo);
+  document.addEventListener('keydown', function (e) {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; /* 输入框内保留浏览器自带撤销 */
+    var k = (e.key || '').toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
+  });
   /* 示例菜单按钮 */
   $('btn-samples').addEventListener('click', function (e) {
     e.stopPropagation();
@@ -5529,6 +5835,11 @@ function bind() {
   /* 场景事件 → UI 刷新 */
   G.on('objects', function () { G.syncParams(); renderObjList(); renderParams(); renderSel(); });
   G.on('selection', function () { renderObjList(); renderSel(); });
+  /* 场景变更 → 撤销历史 + 自动保存（350ms 内的高频变更合并为一步） */
+  G.on('changed', function () {
+    clearTimeout(histTimer);
+    histTimer = setTimeout(function () { pushHistNow(); autosave(); }, 350);
+  });
 }
 function openHelp() { $('help-modal').classList.add('open'); }
 function closeHelp() { $('help-modal').classList.remove('open'); }
@@ -5540,10 +5851,21 @@ function closeMenus() { $('menu-samples').classList.remove('open'); }
 function init() {
   bind();
   renderSymbols();
-  setMode('plane');
-  /* 初始示例：函数图像（含参数） */
-  try { loadSample('p-trig'); } catch (e) { /* 忽略 */ }
-  setTimeout(function () { toast('欢迎使用几何工坊，拖动右侧滑块试试实时联动', 'info'); }, 600);
+  var restored = false;
+  try { restored = tryRestoreScene(); } catch (e) { restored = false; }
+  setMode(Scene.mode || 'plane');
+  renderAll();
+  G.requestRender();
+  if (!restored) {
+    /* 初始示例：函数图像（含参数） */
+    try { loadSample('p-trig'); } catch (e) { /* 忽略 */ }
+  }
+  histReady = true;
+  pushHistNow();
+  updateHistButtons();
+  setTimeout(function () {
+    toast(restored ? '已恢复上次的场景（按 Ctrl+Z 可撤销修改）' : '欢迎使用几何工坊，拖动右侧滑块试试实时联动', 'info');
+  }, 600);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 else init();
