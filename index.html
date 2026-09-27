@@ -1175,7 +1175,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
       <table>
         <tr><td>平面模式</td><td>滚轮缩放（以指针为中心）、空白处拖拽平移、点击选中、拖顶点移动</td></tr>
         <tr><td>空间图形</td><td>立体模式的「几何体」面板顶部可<b>一键创建空间点 / 线段 / 直线 / 平面</b>，拖动顶点即可调整；也可以先建点、选中两点连线、三点定平面</td></tr>
-        <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 或右键拖拽平移、双击复位视角；点选对象后拖动 = 在水平面内移动；<b>按住 Ctrl 拖动 = 竖直升降（调高度）</b>；坐标也可在右侧直接输入</td></tr>
+        <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 或右键拖拽平移、双击复位视角；点选对象后拖动 = 在水平面内移动；<b>按住 Ctrl 拖动 = 竖直升降（调高度）</b>；<b>函数与曲面同样能移动</b>：先点选，再拖动平移，右侧面板还可设位置与旋转角度（∠x / ∠y / ∠z）；坐标也可在右侧直接输入</td></tr>
         <tr><td>触摸屏</td><td>单指平移或旋转，双指捏合缩放，双指拖动平移</td></tr>
         <tr><td>符号输入</td><td>输入框下方有符号条：√ ² | | ! [ ] ≤ ≥ ° 等一键插入，手机上也顺手</td></tr>
         <tr><td>命名的点</td><td>直接写 <span class="mono">P(1, 2)</span> 即可命名为 P；对象列表里点铅笔图标（或双击名字）可随时改名，关联图形名自动跟随（△ABC 改 A 为 P → △PBC）</td></tr>
@@ -3864,6 +3864,42 @@ function screenDeltaToWorld(dx, dy, depth) {
   };
 }
 
+/* ---- 函数 / 曲面的空间变换 t3 = { tx,ty,tz, rx,ry,rz(度) } ----
+   旋转按 Rz·Ry·Rx 组合（用户视角：先绕 x 倾斜、再绕 y、最后绕 z） */
+function ensureT3(o) {
+  if (!o.t3) o.t3 = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+  return o.t3;
+}
+function t3Identity(t) {
+  return !t || (!t.tx && !t.ty && !t.tz && !t.rx && !t.ry && !t.rz);
+}
+function t3Matrix(o) {
+  var t = o && o.t3;
+  if (t3Identity(t)) return null;
+  var rx = (t.rx || 0) * Math.PI / 180, ry = (t.ry || 0) * Math.PI / 180, rz = (t.rz || 0) * Math.PI / 180;
+  var cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry), cz = Math.cos(rz), sz = Math.sin(rz);
+  return {
+    m: [
+      cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx,
+      sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx,
+      -sy, cy * sx, cy * cx
+    ],
+    tx: t.tx || 0, ty: t.ty || 0, tz: t.tz || 0
+  };
+}
+function t3Apply(M, p) {
+  if (!M) return p;
+  var m = M.m, z = (p.z === undefined || p.z === null) ? 0 : p.z;
+  return {
+    x: m[0] * p.x + m[1] * p.y + m[2] * z + M.tx,
+    y: m[3] * p.x + m[4] * p.y + m[5] * z + M.ty,
+    z: m[6] * p.x + m[7] * p.y + m[8] * z + M.tz
+  };
+}
+G.ensureT3 = ensureT3;
+G.t3Matrix = t3Matrix;
+G.t3Apply = t3Apply;
+
 /* 主题色（与 js2 保持一致） */
 var THEME = {
   dark: { grid: 'rgba(230,247,255,.06)', axis: 'rgba(230,247,255,.5)', axisText: 'rgba(248,250,252,.7)',
@@ -4165,6 +4201,7 @@ function collectPlane(o, P, list, lines) {
 function collectSurface(o, P, list, lines) {
   var R = 6, N = (G.quality === 'fast') ? 30 : 46;
   var step = 2 * R / N, i, j;
+  var M3 = t3Matrix(o);
   var pts = [], zmin = Infinity, zmax = -Infinity;
   for (j = 0; j <= N; j++) {
     var y = -R + j * step, row = [];
@@ -4176,7 +4213,7 @@ function collectSurface(o, P, list, lines) {
         z = G.clamp(z, -10, 10);
         if (z < zmin) zmin = z; if (z > zmax) zmax = z;
       }
-      row.push({ x: x, y: y, z: z });
+      row.push(M3 ? t3Apply(M3, { x: x, y: y, z: z }) : { x: x, y: y, z: z });
     }
     pts.push(row);
   }
@@ -4202,6 +4239,9 @@ function collectSurface(o, P, list, lines) {
 }
 
 /* 2D 对象在 3D 中的折线（z=0 平面） */
+/* 隐函数 3D 渲染复用缓冲（避免每帧分配）；OFF3 = 离屏哨兵（有限值，便于 === 比较） */
+var _v3buf = null, _h3buf = null, _hb3buf = null;
+var OFF3 = -1e308;
 function lines2DIn3D(o, P) {
   var out = [];
   var R = 8;
@@ -4240,36 +4280,147 @@ function lines2DIn3D(o, P) {
       }
       if (seg2.length > 1) out.push(seg2);
     } else if (o.kind === 'implicit' || o.kind === 'ineqRegion') {
-      /* 世界空间 marching squares（简化，输出短线段折线）；不等式区域只画边界 */
-      var n2 = 90, h = 2 * R / n2, ii, jj;
-      var vals = [];
-      for (jj = 0; jj <= n2; jj++) {
-        vals.push([]);
-        for (ii = 0; ii <= n2; ii++) vals[jj].push(o.eval(-R + ii * h, -R + jj * h, 0, 0, 0, P));
+      /* 自适应细分 marching squares（世界坐标，格宽按屏幕尺度自适应）：
+         粗格约 6px，热单元（含曲线或紧邻）内 4×4 子格（约 1.5px）二次绘制，
+         尖点 / 相切处不再削角（心形线等）；热点过多退回粗网格直绘，保证交互流畅
+         离屏网格点不做 F 求值（视口裁剪），高倍缩放时开销恒定 */
+      if (!VM) updateView();
+      var fast3 = (G.quality === 'fast');
+      var coarsePx = fast3 ? 9 : 6, SUB3 = fast3 ? 3 : 4, HOTCAP3 = fast3 ? 1500 : 4000;
+      var kpx = FOCAL / Math.max(2, cam.dist || 16);
+      var n2 = G.clamp(Math.round(2 * R / (coarsePx / kpx)), 60, 400);
+      var h = 2 * R / n2, ii, jj;
+      var VIS = 64;
+      /* 视口在 z=0 平面上的世界包围盒（+边距）：一次性裁剪网格求值范围，免逐点投影开销 */
+      var marginW = VIS / kpx + h;
+      var vx0 = -R, vx1 = R, vy0 = -R, vy1 = R;
+      var cxs = [], cys = [];
+      [[0, 0], [SW, 0], [0, SH], [SW, SH]].forEach(function (c) {
+        var w = screenToZ0(c[0], c[1]);
+        if (w && isFinite(w.x) && isFinite(w.y) && Math.abs(w.x) < 1e5 && Math.abs(w.y) < 1e5) { cxs.push(w.x); cys.push(w.y); }
+      });
+      if (cxs.length === 4) {
+        vx0 = Math.max(-R, Math.min.apply(null, cxs) - marginW);
+        vx1 = Math.min(R, Math.max.apply(null, cxs) + marginW);
+        vy0 = Math.max(-R, Math.min.apply(null, cys) - marginW);
+        vy1 = Math.min(R, Math.max.apply(null, cys) + marginW);
       }
-      function seg2(a, b) { if (a && b) out.push([a, b]); }
-      for (jj = 0; jj < n2; jj++) {
-        for (ii = 0; ii < n2; ii++) {
-          var c00 = vals[jj][ii], c10 = vals[jj][ii + 1], c11 = vals[jj + 1][ii + 1], c01 = vals[jj + 1][ii];
-          if (![c00, c10, c11, c01].every(isFinite)) continue;
-          var x0 = -R + ii * h, y0 = -R + jj * h;
-          var pA = { x: x0, y: y0 }, pB = { x: x0 + h, y: y0 }, pC = { x: x0 + h, y: y0 + h }, pD = { x: x0, y: y0 + h };
-          function cross(a, b, va, vb, sg) { var t = va / (va - vb); sg.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: 0 }); }
-          var pts = [];
-          function tri(p1, p2, p3, v1, v2, v3) {
-            var s1 = v1 > 0, s2 = v2 > 0, s3 = v3 > 0;
-            var cnt = (s1 ? 1 : 0) + (s2 ? 1 : 0) + (s3 ? 1 : 0);
-            if (cnt === 0 || cnt === 3) return;
-            var loc = [];
-            if (s1 !== s2) cross(p1, p2, v1, v2, loc);
-            if (s2 !== s3) cross(p2, p3, v2, v3, loc);
-            if (s3 !== s1) cross(p3, p1, v3, v1, loc);
-            if (loc.length === 2) out.push(loc);
-          }
-          tri(pA, pB, pC, c00, c10, c11);
-          tri(pA, pC, pD, c00, c11, c01);
+      /* 后续热单元判定 / 膨胀 / 细化的循环边界（只扫可视区域，避免全网格遍历） */
+      var i0 = G.clamp(Math.floor((vx0 + R) / h) - 1, 0, n2);
+      var i1 = G.clamp(Math.ceil((vx1 + R) / h) + 1, 0, n2);
+      var j0 = G.clamp(Math.floor((vy0 + R) / h) - 1, 0, n2);
+      var j1 = G.clamp(Math.ceil((vy1 + R) / h) + 1, 0, n2);
+      var NW = n2 + 1;
+      if (!_v3buf || _v3buf.length < NW * NW) _v3buf = new Float64Array(NW * NW);
+      if (!_h3buf || _h3buf.length < n2 * n2) { _h3buf = new Uint8Array(n2 * n2); _hb3buf = new Uint8Array(n2 * n2); }
+      var vals = _v3buf, hot = _h3buf, hotB = _hb3buf;
+      vals.fill(OFF3, 0, NW * NW);
+      hot.fill(0, 0, n2 * n2);
+      for (jj = j0; jj <= j1; jj++) {
+        var gyw = -R + jj * h;
+        if (gyw < vy0 || gyw > vy1) continue;
+        var baseR = jj * NW;
+        for (ii = i0; ii <= i1; ii++) {
+          var gxw = -R + ii * h;
+          if (gxw < vx0 || gxw > vx1) continue;
+          vals[baseR + ii] = o.eval(gxw, gyw, 0, 0, 0, P);
         }
       }
+      function mq2(x1, y1, x2, y2, x3, y3, v1, v2, v3) {
+        if (v1 === OFF3 || v2 === OFF3 || v3 === OFF3) return;
+        if (!isFinite(v1) || !isFinite(v2) || !isFinite(v3)) return;
+        var s1 = v1 > 0, s2 = v2 > 0, s3 = v3 > 0;
+        var cnt = (s1 ? 1 : 0) + (s2 ? 1 : 0) + (s3 ? 1 : 0);
+        if (cnt === 0 || cnt === 3) return;
+        var loc = [];
+        if (s1 !== s2) { var tA = v1 / (v1 - v2); loc.push({ x: x1 + (x2 - x1) * tA, y: y1 + (y2 - y1) * tA, z: 0 }); }
+        if (s2 !== s3) { var tB = v2 / (v2 - v3); loc.push({ x: x2 + (x3 - x2) * tB, y: y2 + (y3 - y2) * tB, z: 0 }); }
+        if (s3 !== s1) { var tC = v3 / (v3 - v1); loc.push({ x: x3 + (x1 - x3) * tC, y: y3 + (y1 - y3) * tC, z: 0 }); }
+        if (loc.length === 2) out.push(loc);
+      }
+      function sq(x0, y0, x1, y1, v00, v10, v11, v01) {
+        mq2(x0, y0, x1, y0, x1, y1, v00, v10, v11);
+        mq2(x0, y0, x1, y1, x0, y1, v00, v11, v01);
+      }
+      /* 热单元标记：四角符号不全同 / 中心异号 / 整格振幅极小（贴线） */
+      var hotCount = 0;
+      for (jj = j0; jj < j1; jj++) {
+        var bR0 = jj * NW, bR1 = (jj + 1) * NW, hbR = jj * n2;
+        for (ii = i0; ii < i1; ii++) {
+          var idx = hbR + ii;
+          var a0 = vals[bR0 + ii], a1 = vals[bR0 + ii + 1], a2 = vals[bR1 + ii + 1], a3 = vals[bR1 + ii];
+          if (a0 === OFF3 || a1 === OFF3 || a2 === OFF3 || a3 === OFF3) continue;   /* 视口外 */
+          if (!isFinite(a0) || !isFinite(a1) || !isFinite(a2) || !isFinite(a3)) { hot[idx] = 1; hotCount++; continue; }
+          if ((a0 > 0) !== (a1 > 0) || (a0 > 0) !== (a2 > 0) || (a0 > 0) !== (a3 > 0) ||
+              (a1 > 0) !== (a2 > 0) || (a1 > 0) !== (a3 > 0) || (a2 > 0) !== (a3 > 0)) { hot[idx] = 1; hotCount++; continue; }
+          /* 四角同号：仅当格内振幅表明贴近曲线时才求中心值 */
+          var mx4 = Math.max(a0, a1, a2, a3), mn4 = Math.min(a0, a1, a2, a3);
+          var amn4 = Math.min(Math.abs(a0), Math.abs(a1), Math.abs(a2), Math.abs(a3));
+          if (amn4 > 4 * (mx4 - mn4) + 1e-12) continue;
+          var ac = o.eval(-R + (ii + 0.5) * h, -R + (jj + 0.5) * h, 0, 0, 0, P);
+          if (!isFinite(ac)) { hot[idx] = 1; hotCount++; continue; }
+          var mnv = Math.min(a0, a1, a2, a3, ac), mxv = Math.max(a0, a1, a2, a3, ac);
+          var amn = Math.min(Math.abs(a0), Math.abs(a1), Math.abs(a2), Math.abs(a3), Math.abs(ac));
+          if ((ac > 0) !== (a0 > 0) || amn <= 0.75 * (mxv - mnv)) { hot[idx] = 1; hotCount++; }
+        }
+      }
+      /* 膨胀一圈（尖点 / 切点格常与热格相邻而非自判） */
+      hotB.set(hot);
+      var hotBCount = hotCount;
+      for (jj = j0; jj < j1; jj++) {
+        for (ii = i0; ii < i1; ii++) {
+          if (!hot[jj * n2 + ii]) continue;
+          for (var dj3 = -1; dj3 <= 1; dj3++) {
+            var jv = jj + dj3; if (jv < 0 || jv >= n2) continue;
+            for (var di3 = -1; di3 <= 1; di3++) {
+              var iv = ii + di3; if (iv < 0 || iv >= n2) continue;
+              if (!hotB[jv * n2 + iv]) { hotB[jv * n2 + iv] = 1; hotBCount++; }
+            }
+          }
+        }
+      }
+      if (hotBCount > HOTCAP3) {
+        /* 退化保护：密集曲线族，退回粗网格直绘 */
+        for (jj = j0; jj < j1; jj++) {
+          for (ii = i0; ii < i1; ii++) {
+            var xq = -R + ii * h, yq = -R + jj * h;
+            sq(xq, yq, xq + h, yq + h, vals[jj * NW + ii], vals[jj * NW + ii + 1], vals[(jj + 1) * NW + ii + 1], vals[(jj + 1) * NW + ii]);
+          }
+        }
+      } else {
+        /* 热单元内 4×4 子格细化（角点复用粗网格值） */
+        var dsh = h / SUB3, a3i, b3i;
+        var jE0 = Math.max(0, j0 - 1), jE1 = Math.min(n2, j1 + 1);
+        var iE0 = Math.max(0, i0 - 1), iE1 = Math.min(n2, i1 + 1);
+        for (jj = jE0; jj < jE1; jj++) {
+          for (ii = iE0; ii < iE1; ii++) {
+            if (!hotB[jj * n2 + ii]) continue;
+            var wx0 = -R + ii * h, wy0 = -R + jj * h;
+            var sub = [];
+            for (b3i = 0; b3i <= SUB3; b3i++) {
+              var rowS = [];
+              for (a3i = 0; a3i <= SUB3; a3i++) {
+                if (a3i % SUB3 === 0 && b3i % SUB3 === 0) rowS.push(vals[(jj + b3i / SUB3) * NW + (ii + a3i / SUB3)]);
+                else rowS.push(o.eval(wx0 + a3i * dsh, wy0 + b3i * dsh, 0, 0, 0, P));
+              }
+              sub.push(rowS);
+            }
+            for (b3i = 0; b3i < SUB3; b3i++) {
+              for (a3i = 0; a3i < SUB3; a3i++) {
+                var sxp = wx0 + a3i * dsh, syp = wy0 + b3i * dsh;
+                sq(sxp, syp, sxp + dsh, syp + dsh, sub[b3i][a3i], sub[b3i][a3i + 1], sub[b3i + 1][a3i + 1], sub[b3i + 1][a3i]);
+              }
+            }
+          }
+        }
+      }
+    }
+    /* 统一施加空间变换（移动 / 旋转） */
+    var M3 = t3Matrix(o);
+    if (M3) {
+      out.forEach(function (pl) {
+        pl.forEach(function (p) { var q = t3Apply(M3, p); p.x = q.x; p.y = q.y; p.z = q.z; });
+      });
     }
     return out;
   }
@@ -4342,25 +4493,28 @@ function draw3D() {
     ctx.fill();
   });
 
-  /* 2D 对象（z=0）的折线 */
+  /* 2D 对象（z=0）的折线（同一对象合并为单次描边，细分后线段再多也不掉帧） */
   solidObjs().forEach(function (o) {
     if (['func', 'poly', 'circle', 'ellipse', 'sector', 'segment', 'line'].indexOf(o.type) < 0) return;
     var polylines = lines2DIn3D(o, P);
     var sel = Scene.isSel(o.id);
+    ctx.beginPath();
+    var any3 = false;
     polylines.forEach(function (pl) {
-      ctx.beginPath();
       var started = false;
       pl.forEach(function (p) {
         var q = proj(p);
         if (!q) { started = false; return; }
-        if (!started) { ctx.moveTo(q.x, q.y); started = true; }
+        if (!started) { ctx.moveTo(q.x, q.y); started = true; any3 = true; }
         else ctx.lineTo(q.x, q.y);
       });
+    });
+    if (any3) {
       ctx.strokeStyle = sel ? C().sel : o.color;
       ctx.lineWidth = sel ? 2.8 : 2.2;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.stroke();
-    });
+    }
   });
 
   /* 线段 / 直线 / 向量 */
@@ -4806,15 +4960,16 @@ function pick3(sx, sy) {
         }
       }
     } else if (o.type === 'surface') {
-      /* 曲面用简化包围盒采样：命中近似为任一格 */
+      /* 曲面用简化包围盒采样：命中近似为任一格（含空间变换） */
       var R = 6, N2 = 16, jj, ii;
+      var M3s = t3Matrix(o);
       for (jj = 0; jj < N2; jj++) {
         for (ii = 0; ii < N2; ii++) {
           var x1 = -R + 2 * R * ii / N2, x2 = -R + 2 * R * (ii + 1) / N2;
           var y1 = -R + 2 * R * jj / N2, y2 = -R + 2 * R * (jj + 1) / N2;
           var zc = o.fn.eval((x1 + x2) / 2, (y1 + y2) / 2, 0, 0, 0, G.paramMap());
           if (!isFinite(zc)) continue;
-          var ctr = proj({ x: (x1 + x2) / 2, y: (y1 + y2) / 2, z: G.clamp(zc, -10, 10) });
+          var ctr = proj(t3Apply(M3s, { x: (x1 + x2) / 2, y: (y1 + y2) / 2, z: G.clamp(zc, -10, 10) }));
           if (ctr && Math.hypot(sx - ctr.x, sy - ctr.y) < 26) {
             if (!bestFace || ctr.depth < bestFace.depth) bestFace = { o: o, depth: ctr.depth };
           }
@@ -4868,6 +5023,14 @@ G.pointer3D = function (type, e, p) {
         st3.startZ = hit.cz || 0;
         st3.vertical = !!(e.ctrlKey || e.metaKey);   /* Ctrl 拖动 = 竖直升降 */
         st3.base = screenToZPlane(p.x, p.y, st3.startZ);
+      } else if (hit && (hit.type === 'func' || hit.type === 'surface') && Scene.isSel(hit.id)) {
+        /* 已选中的函数 / 曲面：拖动平移（默认在水平面内，Ctrl 竖直升降） */
+        var t3d = ensureT3(hit);
+        st3.kind = 'dragfunc';
+        st3.fo = hit;
+        st3.f0 = { tx: t3d.tx || 0, ty: t3d.ty || 0, tz: t3d.tz || 0 };
+        st3.vertical = !!(e.ctrlKey || e.metaKey);
+        st3.base = screenToZPlane(p.x, p.y, st3.f0.tz);
       }
       G.quality = 'fast';
       G._lastDragKind = st3.kind; /* 诊断用：最近一次 3D 拖动的类型 */
@@ -4931,6 +5094,23 @@ G.pointer3D = function (type, e, p) {
       }
       st3.solid._built = null;
       G.flash('位置  (' + G.fmt(st3.solid.cx || 0) + ', ' + G.fmt(st3.solid.cy || 0) + ', ' + G.fmt(st3.solid.cz || 0) + ')');
+    } else if (st3.kind === 'dragfunc') {
+      var t3m = ensureT3(st3.fo);
+      if (st3.vertical) {
+        /* Ctrl 拖动：竖直升降（xy 不变） */
+        var qf = proj({ x: st3.f0.tx, y: st3.f0.ty, z: st3.f0.tz + 1 });
+        var kf = (qf ? qf.depth : cam.dist) / FOCAL / Math.max(0.3, Math.cos(cam.pitch));
+        t3m.tz = Math.round((st3.f0.tz - (p.y - st3.y) * kf) * 1e4) / 1e4;
+        G.flash('高度 z = ' + G.fmt(t3m.tz));
+      } else {
+        /* 默认：在过当前高度（tz）的水平面内移动 */
+        var wpf = st3.base ? screenToZPlane(p.x, p.y, st3.f0.tz) : null;
+        if (wpf && st3.base) {
+          t3m.tx = Math.round((st3.f0.tx + (wpf.x - st3.base.x)) * 1e4) / 1e4;
+          t3m.ty = Math.round((st3.f0.ty + (wpf.y - st3.base.y)) * 1e4) / 1e4;
+        }
+        G.flash('位置  (' + G.fmt(t3m.tx) + ', ' + G.fmt(t3m.ty) + ', ' + G.fmt(t3m.tz) + ')');
+      }
     } else if (st3.kind === 'pinch3') {
       var two2 = Array.from(ptr3.values());
       if (two2.length >= 2) {
@@ -4955,6 +5135,9 @@ G.pointer3D = function (type, e, p) {
     } else if (st3 && st3.kind === 'dragsolid') {
       if (!st3.moved) Scene.toggleSel(st3.solid.id, e.shiftKey);
       else wasDrag3 = true;
+    } else if (st3 && st3.kind === 'dragfunc') {
+      if (!st3.moved) Scene.toggleSel(st3.fo.id, e.shiftKey);
+      else wasDrag3 = true;
     }
     if (ptr3.size === 0) { st3 = null; G.quality = 'high'; G.emit('objects'); }
     G.requestRender();
@@ -4967,6 +5150,8 @@ G.wheel3D = function (e) {
 };
 
 G.draw3D = draw3D;
+/* 诊断钩子：供自动化测试读取 3D 折线（与 G._lastDragKind 同类） */
+G._lines3 = lines2DIn3D;
 console.log('[GeoStudio] 立体几何引擎已就绪');
 })();
 /* ============================================================
@@ -5035,7 +5220,7 @@ function setMode(m) {
   $('hud-mode').textContent = m === 'plane' ? '平面几何' : '立体几何';
   $('stage-tip').textContent = m === 'plane'
     ? '滚轮缩放 · 拖拽平移 · 连续点选可多选 · 拖顶点调整'
-    : '拖拽旋转 · 滚轮缩放 · 连续点选可多选 · Ctrl 拖拽调高度';
+    : '拖拽旋转 · 滚轮缩放 · 点选函数/几何体后拖动可移动（Ctrl 调高度）';
   $('input-func').placeholder = m === 'plane' ? 'y = a*sin(b*x)' : 'z = a*sin(x)*cos(y)';
   $('func-hint').innerHTML = m === 'plane'
     ? '支持 <code>y=f(x)</code>、<code>x=g(y)</code>、隐式方程 <code>F(x,y)=0</code>、极坐标 <code>r=f(θ)</code>、参数方程 <code>x=cos(t), y=sin(t)</code>'
@@ -5579,8 +5764,32 @@ function objReadout(o, solid) {
   }
   return h;
 }
-/* 选中面板里的"名称"编辑行（最直观的改名入口：选中即见） */
-function selNameRow(o) {
+/* 空间变换卡（立体模式下选中函数 / 曲面时出现）：平移 + 旋转 + 重置 */
+function t3Card(o) {
+  var t = o.t3 || { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+  function row(key, label, min, max, step) {
+    var v = t[key] || 0;
+    var d = ' data-t3="' + o.id + ':' + key + '"';
+    return '<div class="param-row">' +
+      '<div class="param-head"><span class="param-name">' + label + '</span>' +
+      '<span class="param-val"><input type="number" step="' + step + '" value="' + v + '"' + d + '></span></div>' +
+      '<input type="range" min="' + min + '" max="' + max + '" step="' + step + '" value="' + v + '"' + d + '>' +
+      '</div>';
+  }
+  return '<div class="ro-block" style="margin-top:9px">' +
+    '<div class="ro-title">' + svgIc('i-sliders', 13) + '<span>空间变换 · 移动与旋转</span></div>' +
+    row('tx', '位置 x', -8, 8, 0.05) +
+    row('ty', '位置 y', -8, 8, 0.05) +
+    row('tz', '高度 z', -8, 8, 0.05) +
+    row('rx', '旋转 ∠x', -180, 180, 1) +
+    row('ry', '旋转 ∠y', -180, 180, 1) +
+    row('rz', '旋转 ∠z', -180, 180, 1) +
+    '<button class="btn btn-ghost btn-sm" data-t3reset="' + o.id + '" style="margin-top:2px">重置变换</button>' +
+    '<div class="step" style="color:var(--t3);font-size:11px;margin-top:7px">画布上先点选，再拖动即可平移；Ctrl 拖动调高度</div>' +
+    '</div>';
+}
+
+/* 选中面板里的"名称"编辑行（最直观的改名入口：选中即见） */function selNameRow(o) {
   return '<div class="sel-name-row">' +
     '<span class="snr-type">' + esc(typeLabel(o)) + '</span>' +
     '<input class="ne-input" type="text" maxlength="10" data-rename-id="' + o.id + '" value="' + esc(o.name || '') + '" title="直接修改名称（回车或点击别处生效）" aria-label="重命名">' +
@@ -5619,6 +5828,8 @@ function renderSel() {
       if (i > 0) h += '<div style="height:1px;background:var(--line);margin:9px 0"></div>';
       h += selNameRow(o);
       h += objReadout(o, solid);
+      /* 单选函数 / 曲面（立体模式）：附空间变换卡片 */
+      if (solid && sel.length === 1 && (o.type === 'func' || o.type === 'surface')) h += t3Card(o);
     });
   }
   info.innerHTML = h;
@@ -6249,6 +6460,7 @@ function serializeScene() {
     var rec = null;
     if (o.type === 'func' || o.type === 'surface') {
       rec = { t: o.type, name: o.name, display: o.display, mode: o.mode };
+      if (o.t3) rec.t3 = o.t3;
     } else if (o.type === 'point') {
       rec = { t: 'point', name: o.name, x: o.x, y: o.y, z: o.z || 0, mode: o.mode };
       if (o._expr) rec.expr = o._expr.map(function (c) { return c.src; });
@@ -6294,6 +6506,7 @@ function deserializeScene(data) {
           o = { type: 'func', mode: rec.mode || 'plane', kind: parsed.kind, name: rec.name, params: parsed.params, display: parsed.display };
           ['fn', 'xFn', 'yFn', 'eval', 'tip', 'op', 'truth'].forEach(function (k) { if (parsed[k] !== undefined) o[k] = parsed[k]; });
         }
+        if (rec.t3) o.t3 = { tx: +rec.t3.tx || 0, ty: +rec.t3.ty || 0, tz: +rec.t3.tz || 0, rx: +rec.t3.rx || 0, ry: +rec.t3.ry || 0, rz: +rec.t3.rz || 0 };
       } else if (rec.t === 'point') {
         o = { type: 'point', mode: rec.mode, name: rec.name, x: rec.x, y: rec.y, z: rec.z || 0, params: [] };
         if (rec.expr && rec.expr.length) o._expr = rec.expr.map(function (s) { return G.compileExpr(s); });
@@ -6485,6 +6698,48 @@ function bind() {
       e.preventDefault();
       e.target.blur();
     }
+  });
+  /* 空间变换（函数 / 曲面）：滑块拖动实时应用，松开或回车记入历史 */
+  $('sel-info').addEventListener('pointerdown', function (e) {
+    var t = e.target;
+    if (t && t.dataset && t.dataset.t3 && t.type === 'range') G.quality = 'fast';
+  });
+  $('sel-info').addEventListener('input', function (e) {
+    var t = e.target;
+    if (!t || !t.dataset || !t.dataset.t3 || t.type !== 'range') return;
+    var seg = String(t.dataset.t3).split(':');
+    var o = Scene.byId(parseInt(seg[0], 10));
+    if (!o || !seg[1]) return;
+    var v = parseFloat(t.value);
+    if (!isFinite(v)) return;
+    G.ensureT3(o)[seg[1]] = v;
+    var row = t.closest('.param-row');
+    var num = row ? row.querySelector('input[type=number]') : null;
+    if (num) num.value = v;
+    G.requestRender();
+  });
+  $('sel-info').addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || !t.dataset || !t.dataset.t3) return;
+    var seg = String(t.dataset.t3).split(':');
+    var o = Scene.byId(parseInt(seg[0], 10));
+    if (!o || !seg[1]) return;
+    var v = parseFloat(t.value);
+    if (isFinite(v)) G.ensureT3(o)[seg[1]] = v;
+    G.quality = 'high';
+    G.requestRender();
+    G.emit('changed');
+    renderSel();
+  });
+  $('sel-info').addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-t3reset]') : null;
+    if (!b) return;
+    var o = Scene.byId(parseInt(b.dataset.t3reset, 10));
+    if (!o) return;
+    o.t3 = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+    G.requestRender();
+    G.emit('changed');
+    renderSel();
   });
   /* 参数拖动全局降密度 */
   $('param-list').addEventListener('pointerdown', function () { G.quality = 'fast'; });
