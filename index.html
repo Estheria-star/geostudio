@@ -1182,6 +1182,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
         <tr><td>撤销 / 重做</td><td>Ctrl+Z 撤销、Ctrl+Shift+Z（或 Ctrl+Y）重做，也可以点工具栏按钮；添加、删除、清空、拖动、改参数都能撤</td></tr>
         <tr><td>自动保存</td><td>场景自动保存在本机浏览器里，关掉页面再打开会自动恢复；数据不上传任何地方</td></tr>
         <tr><td>选择与多选</td><td><b>依次点选对象即可多选</b>（最多 3 个，无需按任何键），再点一次取消、点空白处清空；连选两个平面求二面角、选中两点连线、三点定平面（立体模式）</td></tr>
+        <tr><td>导数与圆锥曲线</td><td>选中函数曲线可<b>求导 f′(x)</b>（可一键把导函数画到画布）、分析<b>极值与单调性</b>（可标注极值点）、作<b>切线</b>（指定 x 或选中曲线上的点）；隐式方程可做<b>圆锥曲线分析</b>，自动识别椭圆 / 双曲线 / 抛物线并给出中心、半轴、焦点、离心率、准线、渐近线等；直线与曲线选中后可求<b>弦长</b></td></tr>
       </table>
       <h4>四、默认约束（明确设定）</h4>
       <table>
@@ -1939,6 +1940,295 @@ G.polyCenter = function (pts) {
   var s = { x: 0, y: 0, z: 0 };
   pts.forEach(function (p) { s.x += p.x; s.y += p.y; s.z += (p.z || 0); });
   return { x: s.x / pts.length, y: s.y / pts.length, z: s.z / pts.length };
+};
+
+/* ============================================================
+   3.5 迷你 CAS：符号求导 + 圆锥曲线分析
+   ============================================================ */
+/* 解析为 AST（供符号求导等使用） */
+G.parseToAST = function (src) {
+  return parseTokens(insertImplicitMul(tokenize(preprocess(src))));
+};
+
+/* ---------- 符号求导（对 x） ---------- */
+(function () {
+  function N(v) { return { t: 'num', v: v }; }
+  function isN(n, v) { return n.t === 'num' && (v === undefined || Math.abs(n.v - v) < 1e-12); }
+  function FN2(name, u) { return { t: 'fn', name: name, args: Array.isArray(u) ? u : [u] }; }
+  function ADD(a, b) {
+    if (isN(a) && isN(b)) return N(a.v + b.v);
+    if (isN(a, 0)) return b;
+    if (isN(b, 0)) return a;
+    if (isN(b) && b.v < 0) return SUB(a, N(-b.v));
+    if (b.t === 'op' && b.op === '-' && isN(b.l, 0)) return SUB(a, b.r);
+    return { t: 'op', op: '+', l: a, r: b };
+  }
+  function SUB(a, b) {
+    if (isN(a) && isN(b)) return N(a.v - b.v);
+    if (isN(b, 0)) return a;
+    if (isN(a, 0)) return NEG(b);
+    if (b.t === 'op' && b.op === '-' && isN(b.l, 0)) return ADD(a, b.r);
+    return { t: 'op', op: '-', l: a, r: b };
+  }
+  function NEG(a) {
+    if (isN(a)) return N(-a.v);
+    return { t: 'op', op: '-', l: N(0), r: a };
+  }
+  function MUL(a, b) {
+    if (isN(a) && isN(b)) return N(a.v * b.v);
+    if (isN(a, 0) || isN(b, 0)) return N(0);
+    if (isN(a, 1)) return b;
+    if (isN(b, 1)) return a;
+    if (isN(a, -1)) return NEG(b);
+    if (isN(b, -1)) return NEG(a);
+    return { t: 'op', op: '*', l: a, r: b };
+  }
+  function DIV(a, b) {
+    if (isN(a) && isN(b) && Math.abs(b.v) > 1e-12) return N(a.v / b.v);
+    if (isN(a, 0)) return N(0);
+    if (isN(b, 1)) return a;
+    return { t: 'op', op: '/', l: a, r: b };
+  }
+  function POW(a, b) {
+    if (isN(b, 0)) return N(1);
+    if (isN(b, 1)) return a;
+    if (isN(a, 1)) return N(1);
+    if (isN(a, 0) && !(isN(b) && b.v <= 0)) return N(0);
+    if (isN(a) && isN(b) && b.v === Math.round(b.v) && b.v >= 2 && b.v <= 6) return N(Math.pow(a.v, b.v));
+    return { t: 'op', op: '^', l: a, r: b };
+  }
+  var FN_D = {
+    sin: function (u) { return FN2('cos', u); },
+    cos: function (u) { return NEG(FN2('sin', u)); },
+    tan: function (u) { return DIV(N(1), POW(FN2('cos', u), N(2))); },
+    cot: function (u) { return NEG(DIV(N(1), POW(FN2('sin', u), N(2)))); },
+    sec: function (u) { return MUL(FN2('sec', u), FN2('tan', u)); },
+    csc: function (u) { return NEG(MUL(FN2('csc', u), FN2('cot', u))); },
+    ln: function (u) { return DIV(N(1), u); },
+    lg: function (u) { return DIV(N(1), MUL(u, N(Math.LN10))); },
+    log2: function (u) { return DIV(N(1), MUL(u, N(Math.LN2))); },
+    exp: function (u) { return FN2('exp', u); },
+    sqrt: function (u) { return DIV(N(1), MUL(N(2), FN2('sqrt', u))); },
+    cbrt: function (u) { return DIV(N(1), MUL(N(3), POW(FN2('cbrt', u), N(2)))); },
+    asin: function (u) { return DIV(N(1), FN2('sqrt', [SUB(N(1), POW(u, N(2)))])); },
+    acos: function (u) { return NEG(DIV(N(1), FN2('sqrt', [SUB(N(1), POW(u, N(2)))]))); },
+    atan: function (u) { return DIV(N(1), ADD(N(1), POW(u, N(2)))); },
+    arccot: function (u) { return NEG(DIV(N(1), ADD(N(1), POW(u, N(2))))); },
+    sinh: function (u) { return FN2('cosh', u); },
+    cosh: function (u) { return FN2('sinh', u); },
+    tanh: function (u) { return DIV(N(1), POW(FN2('cosh', u), N(2))); },
+    abs: function (u) { return FN2('sign', u); }
+  };
+  var ALIAS_D = { arcsin: 'asin', arccos: 'acos', arctan: 'atan' };
+  var FLAT_FN = { floor: 1, ceil: 1, round: 1, sign: 1, gauss: 1, int: 1, fact: 1 };
+  function DIFF(n) {
+    if (n.t === 'num') return N(0);
+    if (n.t === 'var') return N(n.name === 'x' ? 1 : 0);
+    if (n.t === 'op') {
+      var l = n.l, r = n.r;
+      if (n.op === '+') return ADD(DIFF(l), DIFF(r));
+      if (n.op === '-') return SUB(DIFF(l), DIFF(r));
+      if (n.op === '*') return ADD(MUL(DIFF(l), r), MUL(l, DIFF(r)));
+      if (n.op === '/') return DIV(SUB(MUL(DIFF(l), r), MUL(l, DIFF(r))), POW(r, N(2)));
+      /* ^ 三种情形 */
+      if (isN(r)) return MUL(MUL(r, POW(l, N(r.v - 1))), DIFF(l));
+      if (isN(l)) return MUL(MUL(POW(l, r), FN2('ln', [l])), DIFF(r));
+      return MUL(POW(l, r), ADD(MUL(DIFF(r), FN2('ln', [l])), DIV(MUL(r, DIFF(l)), l)));
+    }
+    if (n.t === 'fn') {
+      var name = ALIAS_D[n.name] || n.name;
+      var u = n.args[0];
+      if (name === 'log') {
+        if (n.args.length === 2 && isN(n.args[1])) {
+          return DIV(DIFF(u), MUL(u, N(Math.log(n.args[1].v))));
+        }
+        throw new Error('log(a, b) 需常数底才可求导');
+      }
+      if (FLAT_FN[name]) return N(0);
+      if (name === 'min' || name === 'max' || name === 'pow' || name === 'atan2' || name === 'gamma') {
+        throw new Error('函数 ' + n.name + ' 暂不支持求导');
+      }
+      var rule = FN_D[name];
+      if (!rule) throw new Error('函数 ' + n.name + ' 暂不支持求导');
+      return MUL(rule(u), DIFF(u));
+    }
+    throw new Error('表达式结构不支持求导');
+  }
+  /* 中缀打印（带必要的括号，输出可被再次解析） */
+  function trimNum(v) {
+    if (Number.isInteger(v)) return String(v);
+    var s = v.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+    return s;
+  }
+  function prec(n) {
+    if (n.t === 'num') return n.v < 0 ? 3 : 9;
+    if (n.t === 'var' || n.t === 'fn') return 9;
+    if (n.t === 'op') {
+      if (n.op === '+') return 1;
+      if (n.op === '-') return isN(n.l, 0) ? 3 : 1;
+      if (n.op === '*' || n.op === '/') return 2;
+      if (n.op === '^') return 4;
+    }
+    return 9;
+  }
+  function prp(n) {
+    var p = prec(n), s;
+    if (n.t === 'num') s = trimNum(n.v);
+    else if (n.t === 'var') s = n.name;
+    else if (n.t === 'fn') s = n.name + '(' + n.args.map(prp).join(', ') + ')';
+    else if (n.op === '-' && isN(n.l, 0)) {
+      var inner = prp(n.r);
+      s = '-' + (prec(n.r) <= 2 ? '(' + inner + ')' : inner);
+    } else {
+      var lp = prp(n.l), rp = prp(n.r);
+      if (prec(n.l) < p) lp = '(' + lp + ')';
+      if (prec(n.r) < p) rp = '(' + rp + ')';
+      else if (prec(n.r) === p) {
+        if (n.op === '-' || n.op === '/' || n.op === '^') rp = '(' + rp + ')';
+        else if (n.op === '*' && n.r.t === 'op' && n.r.op === '/') rp = '(' + rp + ')';
+      }
+      if (n.op === '^' && prec(n.l) === 4) lp = '(' + lp + ')';
+      s = lp + n.op + rp;
+    }
+    return s;
+  }
+  /* 对外：符号求导 + 数值自检 */
+  G.diffExpr = function (src) {
+    try {
+      var ast = G.parseToAST(src);
+      var d = DIFF(ast);
+      var treeJson;
+      try {
+        treeJson = JSON.stringify(d);
+      } catch (e2) { treeJson = 'unserializable'; }
+      var text;
+      try {
+        text = prp(d);
+      } catch (e3) {
+        throw new Error('打印导数失败：' + e3.message + '｜树=' + String(treeJson).slice(0, 300));
+      }
+      var check = G.compileExpr(text); /* 打印结果必须可再解析 */
+      var f0 = G.compileExpr(src);
+      var warn = null;
+      for (var i = 0; i < 6; i++) {
+        var x = 0.37 + i * 0.83, h = 1e-5;
+        var v1 = f0.eval(x + h, 0, 0, 0, 0, {}), v2 = f0.eval(x - h, 0, 0, 0, 0, {});
+        if (!isFinite(v1) || !isFinite(v2)) continue;
+        var numd = (v1 - v2) / (2 * h);
+        var symd = check.eval(x, 0, 0, 0, 0, {});
+        if (!isFinite(symd)) continue;
+        if (Math.abs(numd - symd) > 1e-3 * (1 + Math.abs(numd))) warn = '数值自检有偏差，请人工核对';
+      }
+      return { ok: true, text: text, warn: warn };
+    } catch (e) {
+      return { ok: false, error: e.message, stack: String(e.stack || '').split('\n').slice(1, 4).join(' | ') };
+    }
+  };
+})();
+
+/* ---------- 圆锥曲线分析（数值提取二次系数 + 配方） ---------- */
+G.analyzeConic = function (F) {
+  function coeffs(h) {
+    var F00 = F(0, 0);
+    var Fx = (F(h, 0) - F(-h, 0)) / (2 * h);
+    var Fy = (F(0, h) - F(0, -h)) / (2 * h);
+    var Fxx = (F(h, 0) - 2 * F00 + F(-h, 0)) / (h * h);
+    var Fyy = (F(0, h) - 2 * F00 + F(0, -h)) / (h * h);
+    var Fxy = (F(h, h) - F(h, -h) - F(-h, h) + F(-h, -h)) / (4 * h * h);
+    return { A: Fxx / 2, B: Fxy, C: Fyy / 2, D: Fx, E: Fy, F0: F00 };
+  }
+  var c1 = coeffs(1), c2 = coeffs(0.5);
+  var scale = Math.max(Math.abs(c1.A), Math.abs(c1.B), Math.abs(c1.C),
+    Math.abs(c1.D), Math.abs(c1.E), Math.abs(c1.F0), 1e-9);
+  var keys = ['A', 'B', 'C', 'D', 'E', 'F0'];
+  for (var i = 0; i < keys.length; i++) {
+    if (Math.abs(c1[keys[i]] - c2[keys[i]]) > 1e-6 * scale) {
+      return { error: '这不是二次曲线（含更高次项或非多项式）；圆锥曲线分析需要二次方程' };
+    }
+  }
+  var A = c1.A, B = c1.B, C = c1.C, D = c1.D, E = c1.E, F0 = c1.F0;
+  if (Math.abs(A) + Math.abs(B) + Math.abs(C) < 1e-9 * scale) {
+    return { error: '这不是二次曲线（没有二次项，实为直线）' };
+  }
+  var f = G.fmt;
+  function part(v) { return Math.abs(v) < 1e-12 ? '' : (v >= 0 ? ' + ' + f(Math.abs(v)) : ' - ' + f(Math.abs(v))); }
+  var steps = [];
+  if (Math.abs(B) > 1e-6 * scale) {
+    return { error: '暂不支持含 xy 项的圆锥曲线（旋转情形）' };
+  }
+  var delta = B * B - 4 * A * C;
+  /* 抛物线型 */
+  if (Math.abs(A) < 1e-9 * scale) {
+    if (Math.abs(D) < 1e-9 * scale) return { error: '退化情形：方程表示水平直线组或空集' };
+    var y1 = -E / (2 * C), x1 = -(F0 - E * E / (4 * C)) / D;
+    var twoP2 = -D / C, p2 = twoP2 / 2;
+    steps.push({ text: '判别式 Δ = B² − 4AC = ' + f(delta) + ' → 抛物线' });
+    steps.push({ text: '配方：(y' + part(-y1) + ')² = ' + f(twoP2) + '(x' + part(-x1) + ')', cls: 'ok' });
+    steps.push({ text: '顶点：(' + f(x1) + ', ' + f(y1) + ')' });
+    steps.push({ text: '焦准距 p = ' + f(p2) + '，焦点：(' + f(x1 + p2) + ', ' + f(y1) + ')' });
+    steps.push({ text: '准线：x = ' + f(x1 - p2) });
+    steps.push({ text: '开口方向：' + (twoP2 > 0 ? '向右' : '向左') });
+    return { ok: true, type: '抛物线', steps: steps };
+  }
+  if (Math.abs(C) < 1e-9 * scale) {
+    if (Math.abs(E) < 1e-9 * scale) return { error: '退化情形：方程表示竖直直线组或空集' };
+    var x0 = -D / (2 * A), y0 = -(F0 - D * D / (4 * A)) / E;
+    var twoP = -E / A, p = twoP / 2;
+    steps.push({ text: '判别式 Δ = B² − 4AC = ' + f(delta) + ' → 抛物线' });
+    steps.push({ text: '配方：(x' + part(-x0) + ')² = ' + f(twoP) + '(y' + part(-y0) + ')', cls: 'ok' });
+    steps.push({ text: '顶点：(' + f(x0) + ', ' + f(y0) + ')' });
+    steps.push({ text: '焦准距 p = ' + f(p) + '，焦点：(' + f(x0) + ', ' + f(y0 + p) + ')' });
+    steps.push({ text: '准线：y = ' + f(y0 - p) });
+    steps.push({ text: '开口方向：' + (twoP > 0 ? '向上' : '向下') });
+    return { ok: true, type: '抛物线', steps: steps };
+  }
+  /* 椭圆 / 双曲线 */
+  var cx = -D / (2 * A), cy = -E / (2 * C);
+  var Fp = F(cx, cy);
+  var ka = -Fp / A, kc = -Fp / C;
+  if (ka > 1e-9 * scale && kc > 1e-9 * scale) {
+    var a2 = Math.max(ka, kc), b2 = Math.min(ka, kc);
+    var a = Math.sqrt(a2), b = Math.sqrt(b2);
+    var cc = Math.sqrt(Math.max(0, a2 - b2));
+    var e = cc / a;
+    var longX = ka >= kc;
+    var isCircle = Math.abs(a2 - b2) < 1e-9 * a2;
+    steps.push({ text: '判别式 Δ = B² − 4AC = ' + f(delta) + ' < 0 → ' + (isCircle ? '圆（椭圆的特例）' : '椭圆') });
+    steps.push({ text: '配方：(x' + part(-cx) + ')²/' + f(a2) + ' + (y' + part(-cy) + ')²/' + f(b2) + ' = 1', cls: 'ok' });
+    steps.push({ text: '中心：(' + f(cx) + ', ' + f(cy) + ')' });
+    steps.push({ text: '半轴：a = ' + f(a) + '（' + (longX ? 'x 方向' : 'y 方向') + '），b = ' + f(b) });
+    steps.push({ text: '焦距 c = √(a²−b²) = ' + f(cc) + '；离心率 e = c/a = ' + f(e) });
+    steps.push({ text: '焦点：' + (longX
+      ? '(' + f(cx - cc) + ', ' + f(cy) + ') 与 (' + f(cx + cc) + ', ' + f(cy) + ')'
+      : '(' + f(cx) + ', ' + f(cy - cc) + ') 与 (' + f(cx) + ', ' + f(cy + cc) + ')') });
+    steps.push({ text: '准线：' + (longX ? 'x = ' + f(cx - a2 / cc) + ' 与 x = ' + f(cx + a2 / cc) : 'y = ' + f(cy - a2 / cc) + ' 与 y = ' + f(cy + a2 / cc)) });
+    return { ok: true, type: isCircle ? '圆' : '椭圆', steps: steps };
+  }
+  if (ka < -1e-9 * scale && kc < -1e-9 * scale) {
+    return { error: '退化情形：无实数点（虚椭圆）' };
+  }
+  if (Math.abs(ka) < 1e-9 * scale || Math.abs(kc) < 1e-9 * scale) {
+    return { error: '退化情形：方程表示一个点或两条相交直线' };
+  }
+  var xPos = ka > 0;
+  var posK = xPos ? ka : kc, negK = xPos ? kc : ka;
+  var aH = Math.sqrt(posK), bH = Math.sqrt(-negK), cH = Math.sqrt(posK - negK);
+  var eH = cH / aH;
+  steps.push({ text: '判别式 Δ = B² − 4AC = ' + f(delta) + ' > 0 → 双曲线' });
+  steps.push({ text: '中心：(' + f(cx) + ', ' + f(cy) + ')' });
+  if (xPos) {
+    steps.push({ text: '配方：(x' + part(-cx) + ')²/' + f(posK) + ' − (y' + part(-cy) + ')²/' + f(-negK) + ' = 1', cls: 'ok' });
+    steps.push({ text: '实半轴 a = ' + f(aH) + '（x 方向），虚半轴 b = ' + f(bH) });
+    steps.push({ text: '渐近线：y = ' + f(bH / aH) + '(x' + part(-cx) + ')' + part(cy) + ' 与 y = ' + f(-bH / aH) + '(x' + part(-cx) + ')' + part(cy) });
+    steps.push({ text: '焦点：(' + f(cx - cH) + ', ' + f(cy) + ') 与 (' + f(cx + cH) + ', ' + f(cy) + ')' });
+  } else {
+    steps.push({ text: '配方：(y' + part(-cy) + ')²/' + f(posK) + ' − (x' + part(-cx) + ')²/' + f(-negK) + ' = 1', cls: 'ok' });
+    steps.push({ text: '实半轴 a = ' + f(aH) + '（y 方向），虚半轴 b = ' + f(bH) });
+    steps.push({ text: '渐近线：y = ' + f(aH / bH) + '(x' + part(-cx) + ')' + part(cy) + ' 与 y = ' + f(-aH / bH) + '(x' + part(-cx) + ')' + part(cy) });
+    steps.push({ text: '焦点：(' + f(cx) + ', ' + f(cy - cH) + ') 与 (' + f(cx) + ', ' + f(cy + cH) + ')' });
+  }
+  steps.push({ text: '焦距 c = ' + f(cH) + '；离心率 e = c/a = ' + f(eH) });
+  return { ok: true, type: '双曲线', steps: steps };
 };
 
 /* ============================================================
@@ -5267,10 +5557,24 @@ function renderActions() {
     var o = sel[0];
     if (['poly', 'circle', 'ellipse', 'sector'].indexOf(o.type) >= 0) add('求面积', 'area', 'i-tri');
     if (o.type === 'func' && (o.kind === 'explicitY' || o.kind === 'explicitX')) add('围成面积', 'area-func', 'i-sigma');
+    /* 导数与圆锥曲线 */
+    if (o.type === 'func' && o.kind === 'explicitY') {
+      add('求导 f′(x)', 'deriv', 'i-sigma');
+      add('极值与单调', 'extrema', 'i-tri');
+      add('切线', 'tangent', 'i-ruler');
+    }
+    if (o.type === 'func' && ['explicitY', 'explicitX', 'implicit'].indexOf(o.kind) >= 0) {
+      add('圆锥曲线分析', 'conic', 'i-circle');
+    }
     if (o.type === 'solid') { add('求体积', 'volume', 'i-box'); add('求表面积', 'surfarea', 'i-ruler'); }
     if (solid && o.type === 'point') add('删除', 'del', 'i-trash');
   } else if (sel.length === 2) {
     if (sel.every(function (p) { return p.type === 'point'; })) add('连接两点', 'link', 'i-link');
+    var oneCurve = sel.some(function (p) { return p.type === 'func'; });
+    var onePoint = sel.some(function (p) { return p.type === 'point'; });
+    var oneLine = sel.some(function (p) { return p.type === 'segment' || p.type === 'line'; });
+    if (oneCurve && onePoint) add('过点切线', 'tangent-pt', 'i-ruler');
+    if (oneCurve && oneLine) add('弦长', 'chord', 'i-ruler');
     var ts = sel.map(function (p) { return p.type; }).sort().join(',');
     var geomTypes = ['segment', 'line', 'plane3', 'point'];
     if (solid && sel.every(function (p) { return geomTypes.indexOf(p.type) >= 0; })) add('求距离', 'dist', 'i-ruler');
@@ -5320,6 +5624,215 @@ function resultText(res) {
   return out;
 }
 
+/* ============================================================
+   6.5 教学计算：求导 / 极值 / 切线 / 弦长 / 圆锥曲线
+   ============================================================ */
+function curveSrcOf(o) {
+  if (o.kind === 'explicitY') return o.display.replace(/^y\s*=\s*/, '');
+  return null;
+}
+/* 求导 f′(x)（符号求导 + 数值自检） */
+function runDerivative(o) {
+  var src = curveSrcOf(o);
+  if (!src) { toast('求导仅支持 y = f(x) 形式的函数曲线', 'warn'); return; }
+  var d = G.diffExpr(src);
+  if (!d.ok) { toast('求导失败：' + d.error, 'warn'); return; }
+  G._lastDerivSrc = d.text;
+  var steps = [
+    { text: 'f(x) = ' + src },
+    { text: 'f′(x) = ' + d.text, cls: 'ok' },
+    { text: '（幂函数、和差积商、复合函数链式法则自动应用，结果已数值校验）', cls: 'dim' }
+  ];
+  if (d.warn) steps.push({ text: '注意：' + d.warn, cls: 'dim' });
+  showResult({ title: '导数 f′(x)', value: NaN, steps: steps },
+    '<div class="result-actions"><button class="btn btn-ghost btn-xs" data-act="plot-deriv">' +
+    svgIc('i-plus', 13) + '把 f′(x) 画到画布</button></div>');
+}
+/* 极值与单调性 */
+function runExtrema(o) {
+  var src = curveSrcOf(o);
+  if (!src) { toast('极值分析仅支持 y = f(x) 形式的函数', 'warn'); return; }
+  var d = G.diffExpr(src);
+  if (!d.ok) { toast('求导失败：' + d.error, 'warn'); return; }
+  var df = G.compileExpr(d.text);
+  var P = G.paramMap();
+  var b = G.viewBounds();
+  var roots = [], prev = null, prevX = null, i;
+  for (i = 0; i <= 1400; i++) {
+    var x = b.x0 + (b.x1 - b.x0) * i / 1400;
+    var v = df.eval(x, 0, 0, 0, 0, P);
+    if (!isFinite(v)) { prev = null; continue; }
+    if (prev !== null) {
+      if (prev === 0) { roots.push(prevX); }
+      else if (prev * v < 0) {
+        var lo = prevX, hi = x, flo = prev;
+        for (var it = 0; it < 50; it++) {
+          var mid = (lo + hi) / 2, fm = df.eval(mid, 0, 0, 0, 0, P);
+          if (!isFinite(fm)) break;
+          if (fm === 0 || hi - lo < 1e-12) { lo = hi = mid; break; }
+          if (flo * fm < 0) hi = mid; else { lo = mid; flo = fm; }
+        }
+        roots.push((lo + hi) / 2);
+      }
+    }
+    prev = v; prevX = x;
+  }
+  roots = roots.filter(function (r, k) { return k === 0 || Math.abs(r - roots[k - 1]) > 1e-5; });
+  if (!roots.length) {
+    var mv = df.eval((b.x0 + b.x1) / 2, 0, 0, 0, 0, P);
+    showResult({ title: '单调性与极值', value: NaN, steps: [
+      { text: 'f′(x) = ' + d.text },
+      { text: 'f′(x) 在当前视口内无零点 → ' + (mv > 0 ? '单调递增' : mv < 0 ? '单调递减' : '导数恒为 0') + '（视口范围内）', cls: 'ok' }
+    ] });
+    return;
+  }
+  var steps = [{ text: 'f′(x) = ' + d.text }];
+  var ext = [];
+  roots.forEach(function (r) {
+    var eps = 1e-4 * Math.max(1, Math.abs(r));
+    var lv = df.eval(r - eps, 0, 0, 0, 0, P);
+    var rv = df.eval(r + eps, 0, 0, 0, 0, P);
+    var type = (lv > 0 && rv < 0) ? '极大值' : (lv < 0 && rv > 0) ? '极小值' : null;
+    var yv = o.fn.eval(r, 0, 0, 0, 0, P);
+    if (type) {
+      ext.push({ x: r, y: yv, type: type });
+      steps.push({ text: 'x = ' + G.fmt(r) + '：f′ 由' + (lv > 0 ? '正' : '负') + '变' + (rv > 0 ? '正' : '负') + ' → ' + type + '点 (' + G.fmt(r) + ', ' + G.fmt(yv) + ')', cls: 'ok' });
+    } else {
+      steps.push({ text: 'x = ' + G.fmt(r) + '：f′ 两侧同号 → 不是极值点', cls: 'dim' });
+    }
+  });
+  var bounds = [b.x0].concat(roots, [b.x1]);
+  var mono = [];
+  for (i = 0; i < bounds.length - 1; i++) {
+    var a2 = bounds[i], e2 = bounds[i + 1];
+    var mvv = df.eval((a2 + e2) / 2, 0, 0, 0, 0, P);
+    mono.push((mvv > 0 ? '增' : '减') + ' [' + G.fmt(a2, 2) + ', ' + G.fmt(e2, 2) + ']');
+  }
+  steps.push({ text: '单调性（视口内）：' + mono.join('　'), cls: 'ok' });
+  G._lastExtrema = ext;
+  var ui = ext.length ? '<div class="result-actions"><button class="btn btn-ghost btn-xs" data-act="mark-extrema">' + svgIc('i-cross', 13) + '在图上标出极值点</button></div>' : '';
+  showResult({ title: '单调性与极值', value: NaN, steps: steps }, ui);
+}
+/* 切线（函数曲线，指定 x₀） */
+function runTangentAt(o, x0) {
+  var src = curveSrcOf(o);
+  if (!src) { toast('切线目前支持 y = f(x) 形式的函数', 'warn'); return; }
+  var P = G.paramMap();
+  var steps = [];
+  var d = G.diffExpr(src);
+  var k;
+  if (d.ok) {
+    var df = G.compileExpr(d.text);
+    k = df.eval(x0, 0, 0, 0, 0, P);
+    steps.push({ text: 'f′(x) = ' + d.text });
+    steps.push({ text: '斜率 k = f′(' + G.fmt(x0) + ') = ' + G.fmt(k) });
+  } else {
+    var h = 1e-6;
+    k = (o.fn.eval(x0 + h, 0, 0, 0, 0, P) - o.fn.eval(x0 - h, 0, 0, 0, 0, P)) / (2 * h);
+    steps.push({ text: '斜率 k ≈ ' + G.fmt(k) + '（数值差分）' });
+  }
+  if (!isFinite(k)) { toast('该点导数不存在，无法作切线', 'warn'); return; }
+  var y0 = o.fn.eval(x0, 0, 0, 0, 0, P);
+  var b2 = y0 - k * x0;
+  steps.push({ text: '切点：(' + G.fmt(x0) + ', ' + G.fmt(y0) + ')', cls: 'ok' });
+  steps.push({ text: '切线方程：y = ' + G.fmt(k) + 'x ' + (b2 >= 0 ? '+ ' : '- ') + G.fmt(Math.abs(b2)), cls: 'ok' });
+  var p1 = mkp(null, x0 - 1.2, y0 - 1.2 * k, 0);
+  var p2 = mkp(null, x0 + 1.2, y0 + 1.2 * k, 0);
+  var line = mkseg(p1, p2);
+  line.type = 'line';
+  line.name = '切线';
+  steps.push({ text: '（切线已画到画布，可拖动其两个控制点调整）', cls: 'dim' });
+  var ui = '<div class="range-inputs">在 x = <input type="number" step="any" data-tangent-x value="' + x0 + '"> 处作切线 ' +
+    '<button class="btn btn-ghost btn-xs" data-act="apply-tangent">重新计算</button></div>';
+  showResult({ title: '切线', value: NaN, steps: steps }, ui);
+  renderAll();
+}
+/* 过点切线（隐式曲线 / 圆 / 椭圆用梯度法） */
+function runTangentByPoint(sel) {
+  var pt = sel.filter(function (p) { return p.type === 'point'; })[0];
+  if (!pt) return;
+  var P = G.paramMap();
+  var curve = sel.filter(function (p) { return p.type === 'func' || p.type === 'circle' || p.type === 'ellipse'; })[0];
+  if (!curve) { toast('请同时选中一个点与一条曲线', 'warn'); return; }
+  if (curve.kind === 'explicitY') {
+    var yc = curve.fn.eval(pt.x, 0, 0, 0, 0, P);
+    if (Math.abs(yc - pt.y) > 0.1) { toast('该点不在曲线上（相差 ' + G.fmt(Math.abs(yc - pt.y)) + '），请先拖到曲线上', 'warn'); return; }
+    runTangentAt(curve, pt.x);
+    return;
+  }
+  var Fv = 0, Fx = 0, Fy = 0, h = 1e-4;
+  if (curve.kind === 'implicit') {
+    Fv = curve.eval(pt.x, pt.y, 0, 0, 0, P);
+    Fx = (curve.eval(pt.x + h, pt.y, 0, 0, 0, P) - curve.eval(pt.x - h, pt.y, 0, 0, 0, P)) / (2 * h);
+    Fy = (curve.eval(pt.x, pt.y + h, 0, 0, 0, P) - curve.eval(pt.x, pt.y - h, 0, 0, 0, P)) / (2 * h);
+  } else if (curve.kind === 'explicitX') {
+    Fv = pt.x - curve.fn.eval(0, pt.y, 0, 0, 0, P);
+    Fx = 1;
+    Fy = -(curve.fn.eval(0, pt.y + h, 0, 0, 0, P) - curve.fn.eval(0, pt.y - h, 0, 0, 0, P)) / (2 * h);
+  } else if (curve.type === 'circle') {
+    var c = Scene.byId(curve.cid); if (!c) return;
+    Fv = Math.hypot(pt.x - c.x, pt.y - c.y) - curve.r;
+    Fx = pt.x - c.x; Fy = pt.y - c.y;
+  } else if (curve.type === 'ellipse') {
+    var c2 = Scene.byId(curve.cid); if (!c2) return;
+    var ux = (pt.x - c2.x) / curve.a, uy = (pt.y - c2.y) / curve.b;
+    Fv = ux * ux + uy * uy - 1;
+    Fx = ux / curve.a; Fy = uy / curve.b;
+  }
+  var scaleF = Math.max(1, Math.hypot(Fx, Fy));
+  if (Math.abs(Fv) / scaleF > 0.1) { toast('该点不在曲线上，请先拖到曲线附近', 'warn'); return; }
+  var dx = -Fy, dy = Fx;
+  var L = Math.hypot(dx, dy) || 1;
+  dx /= L; dy /= L;
+  var steps = [
+    { text: '切点：(' + G.fmt(pt.x) + ', ' + G.fmt(pt.y) + ')' },
+    { text: '法向量（梯度）≈ (' + G.fmt(Fx, 3) + ', ' + G.fmt(Fy, 3) + ')' },
+    { text: '切线方程：' + G.fmt(Fx, 3) + '(x − ' + G.fmt(pt.x) + ') + ' + G.fmt(Fy, 3) + '(y − ' + G.fmt(pt.y) + ') = 0', cls: 'ok' }
+  ];
+  var p1 = mkp(null, pt.x - dx * 2.5, pt.y - dy * 2.5, 0);
+  var p2 = mkp(null, pt.x + dx * 2.5, pt.y + dy * 2.5, 0);
+  var line = mkseg(p1, p2);
+  line.type = 'line';
+  line.name = '切线';
+  steps.push({ text: '（切线已画到画布，可拖动控制点调整）', cls: 'dim' });
+  showResult({ title: '切线（隐式曲线 / 圆锥曲线）', value: NaN, steps: steps });
+  renderAll();
+}
+/* 弦长（直线/线段 × 曲线） */
+function runChordCalc(sel) {
+  var line = sel.filter(function (p) { return p.type === 'segment' || p.type === 'line'; })[0];
+  var curve = sel.filter(function (p) { return p.type === 'func' || p.type === 'circle' || p.type === 'ellipse'; })[0];
+  if (!line || !curve) { toast('请选中一条直线/线段和一条曲线', 'warn'); return; }
+  var pts = G.intersectionsOf(line, curve, G.paramMap());
+  if (!pts || pts.length < 2) { toast('视口内交点不足两个，无法求弦长（可把视图拉远）', 'warn'); return; }
+  var A = pts[0], B = pts[1], best = -1, i, j;
+  for (i = 0; i < pts.length; i++) {
+    for (j = i + 1; j < pts.length; j++) {
+      var dd = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+      if (dd > best) { best = dd; A = pts[i]; B = pts[j]; }
+    }
+  }
+  var gx = B.x - A.x, gy = B.y - A.y;
+  showResult({ title: '弦长', value: best, steps: [
+    { text: '交点 A：(' + G.fmt(A.x) + ', ' + G.fmt(A.y) + ')' },
+    { text: '交点 B：(' + G.fmt(B.x) + ', ' + G.fmt(B.y) + ')' },
+    { text: '|AB| = √(Δx² + Δy²) = √(' + G.fmt(gx * gx) + ' + ' + G.fmt(gy * gy) + ')' },
+    { text: '弦长 = ' + G.fmt(best), cls: 'ok' }
+  ] });
+}
+/* 圆锥曲线分析 */
+function runConicAnalyze(o) {
+  var P = G.paramMap();
+  var F;
+  if (o.kind === 'explicitY') F = function (x, y) { return y - o.fn.eval(x, 0, 0, 0, 0, P); };
+  else if (o.kind === 'explicitX') F = function (x, y) { return x - o.fn.eval(0, y, 0, 0, 0, P); };
+  else if (o.kind === 'implicit') F = function (x, y) { return o.eval(x, y, 0, 0, 0, P); };
+  else { toast('暂不支持该对象类型', 'warn'); return; }
+  var res = G.analyzeConic(F);
+  if (!res.ok) { toast(res.error, 'warn'); return; }
+  var steps = [{ text: '识别结果：' + res.type, cls: 'ok' }].concat(res.steps);
+  showResult({ title: '圆锥曲线分析 · ' + res.type, value: NaN, steps: steps });
+}
 function runAction(act) {
   var sel = Scene.selObjs();
   var o = sel[0];
@@ -5372,6 +5885,36 @@ function runAction(act) {
       var res2 = G.areaOf(o, { x1: parseFloat(i1.value), x2: parseFloat(i2.value) });
       showResult(res2, card2.querySelector('.range-inputs').outerHTML);
     }
+  } else if (act === 'deriv') {
+    runDerivative(o);
+  } else if (act === 'extrema') {
+    runExtrema(o);
+  } else if (act === 'tangent') {
+    var b3 = G.viewBounds();
+    runTangentAt(o, Math.round((b3.x0 + b3.x1) / 2 * 100) / 100);
+  } else if (act === 'tangent-pt') {
+    runTangentByPoint(sel);
+  } else if (act === 'chord') {
+    runChordCalc(sel);
+  } else if (act === 'conic') {
+    runConicAnalyze(o);
+  } else if (act === 'plot-deriv') {
+    if (G._lastDerivSrc) {
+      try { addFuncStr('y = ' + G._lastDerivSrc); toast('已把导数曲线画到画布', 'ok'); renderAll(); }
+      catch (e) { toast(e.message, 'warn'); }
+    }
+  } else if (act === 'apply-tangent') {
+    var xin = document.querySelector('#result-body input[data-tangent-x]');
+    var xv = xin ? parseFloat(xin.value) : NaN;
+    var curveD = sel.filter(function (p) { return p.kind === 'explicitY'; })[0];
+    if (curveD && isFinite(xv)) runTangentAt(curveD, xv);
+  } else if (act === 'mark-extrema') {
+    var ext = G._lastExtrema || [];
+    ext.forEach(function (e2) {
+      var p2 = mkp(null, e2.x, e2.y, 0);
+      p2.name = G.nameOf(e2.type, e2.type);
+    });
+    if (ext.length) { toast('已标出 ' + ext.length + ' 个极值点', 'ok'); renderAll(); }
   }
   renderSel();
 }
