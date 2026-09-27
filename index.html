@@ -434,6 +434,33 @@ canvas{display:block}
 @media (max-width:560px){.sub-form{flex-direction:column}}
 
 /* ============================================================
+   9.5 联系区
+   ============================================================ */
+.contact{padding:78px 0 30px}
+.contact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:16px;max-width:1000px;margin:0 auto}
+.contact-card{
+  display:flex;flex-direction:column;align-items:center;gap:7px;padding:26px 14px 20px;
+  border-radius:var(--r-lg);border:1px solid var(--line);background:var(--glass);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  color:var(--t1);text-decoration:none;cursor:pointer;text-align:center;
+  font-family:inherit;font-size:inherit;
+  transition:transform .35s var(--ease),opacity .35s var(--ease);
+}
+.contact-card:hover{transform:translateY(-5px)}
+.c-icon{
+  display:grid;place-items:center;width:44px;height:44px;border-radius:13px;
+  background:var(--glass-2);border:1px solid var(--line);margin-bottom:5px;
+}
+.c-icon svg{width:21px;height:21px;color:var(--brand)}
+.contact-grid .contact-card:nth-child(2) .c-icon svg{color:var(--brand-2)}
+.contact-grid .contact-card:nth-child(3) .c-icon svg{color:var(--violet)}
+.contact-grid .contact-card:nth-child(4) .c-icon svg{color:var(--pink)}
+.contact-grid .contact-card:nth-child(5) .c-icon svg{color:var(--brand-2)}
+.c-name{font-weight:700;font-size:15px}
+.c-desc{color:var(--t2);font-size:12.5px;font-family:var(--mono);word-break:break-all;line-height:1.5}
+.c-sub{font-size:11px;color:var(--t3)}
+
+/* ============================================================
    10. 页脚
    ============================================================ */
 .footer{border-top:1px solid var(--line);padding:34px 0 44px}
@@ -521,6 +548,7 @@ canvas{display:block}
 /* 对象列表 */
 .obj-box{flex:0 0 auto;max-height:236px;display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .obj-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px;font-size:11.5px;letter-spacing:.1em;color:var(--t3);font-family:var(--mono);text-transform:uppercase}
+.obj-tip{font-size:10.5px;color:var(--t3);letter-spacing:0;text-transform:none;font-family:var(--sans);margin-left:auto;margin-right:10px}
 .obj-list{overflow-y:auto;padding:0 9px 11px;min-height:44px}
 .obj-empty{padding:8px 6px;font-size:12.5px;color:var(--t3)}
 .obj-row{
@@ -544,6 +572,15 @@ canvas{display:block}
   width:96px;padding:2px 7px;border-radius:6px;border:1px solid var(--brand);
   background:var(--glass-2);font-family:var(--mono);font-size:12.4px;color:var(--t1);outline:none;
 }
+/* 选中面板里的名称编辑行 */
+.sel-name-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.sel-name-row .snr-type{font-size:11px;color:var(--t3);flex:0 0 auto;white-space:nowrap}
+.sel-name-row .swatch{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.ne-input{
+  flex:1;min-width:0;padding:4px 8px;border-radius:7px;border:1px solid var(--line);
+  background:var(--glass-2);font-family:var(--mono);font-size:12.5px;color:var(--t1);outline:none;
+}
+.ne-input:focus{border-color:var(--brand)}
 
 /* 画布舞台 */
 .stage{position:relative;min-width:0;overflow:hidden;background:linear-gradient(180deg,var(--canvas-bg-2),var(--canvas-bg))}
@@ -716,6 +753,11 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
     <symbol id="i-rotate3d" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+    <symbol id="i-git-branch" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+    <symbol id="i-bilibili" viewBox="0 0 24 24"><path d="M7 4 9.5 7M17 4 14.5 7"/><rect x="3.5" y="7" width="17" height="12.5" rx="3.5"/><path d="M8.5 12v2.5M15.5 12v2.5"/></symbol>
   </defs>
 </svg>
 
@@ -729,8 +771,8 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
     <nav class="nav-links" aria-label="页内导航">
       <a href="#studio"><span>工作台</span></a>
       <a href="#features"><span>功能</span></a>
-      <a href="#reviews"><span>评价</span></a>
       <a href="#faq"><span>常见问题</span></a>
+      <a href="#contact"><span>联系</span></a>
     </nav>
     <div class="nav-right">
       <button class="theme-toggle" id="theme-toggle" aria-label="切换亮暗主题">
@@ -934,7 +976,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
             </div>
           </div>
           <div class="obj-box">
-            <div class="obj-head"><span>对象</span><span id="obj-count">0</span></div>
+            <div class="obj-head"><span>对象</span><span class="obj-tip">双击名字或点铅笔可改名</span><span id="obj-count">0</span></div>
             <ul class="obj-list" id="obj-list"></ul>
           </div>
         </aside>
@@ -1037,49 +1079,6 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
   </div>
 </section>
 
-<!-- ===== 评价轮播 ===== -->
-<section class="reviews" id="reviews">
-  <div class="container">
-    <div class="sec-head reveal">
-      <span class="sec-eyebrow">VOICES / 使用之声</span>
-      <h2>老师们这样用它上课</h2>
-      <p>按住卡片可以左右拖动，自动播放时鼠标悬停即暂停</p>
-    </div>
-    <div class="review-shell reveal">
-      <div class="review-viewport" id="review-viewport">
-        <div class="review-track" id="review-track">
-          <div class="review-slide"><div class="review-card">
-            <div class="review-stars"><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg></div>
-            <p class="review-quote">讲含参二次函数时直接拖滑块，学生一眼就看懂参数在图像上的作用，比黑板作图快太多</p>
-            <div class="review-who"><div class="review-avatar">王</div><div><div class="review-name">王老师</div><div class="review-role">高中数学教研组</div></div></div>
-          </div></div>
-          <div class="review-slide"><div class="review-card">
-            <div class="review-stars"><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg></div>
-            <p class="review-quote">立体几何的二面角一直是我的噩梦，现在画出来直接标角度，做题心里终于有底了</p>
-            <div class="review-who"><div class="review-avatar">李</div><div><div class="review-name">李同学</div><div class="review-role">高二 · 学生</div></div></div>
-          </div></div>
-          <div class="review-slide"><div class="review-card">
-            <div class="review-stars"><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg></div>
-            <p class="review-quote">函数与方程画在同一张图上，交点坐标实时显示，讲零点存在定理特别顺手</p>
-            <div class="review-who"><div class="review-avatar">张</div><div><div class="review-name">张老师</div><div class="review-role">高三复习课</div></div></div>
-          </div></div>
-          <div class="review-slide"><div class="review-card">
-            <div class="review-stars"><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg></div>
-            <p class="review-quote">向量垂直平行不用再死记公式，画两条向量马上出结论，复习时当验算器用也很香</p>
-            <div class="review-who"><div class="review-avatar">陈</div><div><div class="review-name">陈同学</div><div class="review-role">高一 · 学生</div></div></div>
-          </div></div>
-          <div class="review-slide"><div class="review-card">
-            <div class="review-stars"><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg><svg viewBox="0 0 24 24"><use href="#i-star"/></svg></div>
-            <p class="review-quote">平面到立体切换很顺，极坐标与参数方程也能画，一节公开课下来课件全靠它</p>
-            <div class="review-who"><div class="review-avatar">刘</div><div><div class="review-name">刘老师</div><div class="review-role">竞赛辅导</div></div></div>
-          </div></div>
-        </div>
-      </div>
-      <div class="review-dots" id="review-dots"></div>
-    </div>
-  </div>
-</section>
-
 <!-- ===== FAQ ===== -->
 <section class="faq" id="faq">
   <div class="container">
@@ -1117,17 +1116,41 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
   </div>
 </section>
 
-<!-- ===== 订阅 ===== -->
-<section class="subscribe" id="subscribe">
+<!-- ===== 联系 ===== -->
+<section class="contact" id="contact">
   <div class="container">
-    <div class="sub-card reveal">
-      <h2>新功能与教学模板，优先发给你</h2>
-      <p>留下邮箱，等立体几何进阶模板与题目预设更新时收到通知</p>
-      <form class="sub-form" id="sub-form" novalidate>
-        <input type="email" id="sub-email" placeholder="you@example.com" aria-label="邮箱地址" autocomplete="email">
-        <button class="btn btn-primary" id="sub-btn" type="submit"><span class="btn-label">订阅更新</span></button>
-      </form>
-      <p class="sub-note">本页为静态演示，不会真实收集邮箱；所有数据都留在你的浏览器里</p>
+    <div class="sec-head reveal">
+      <span class="sec-eyebrow">CONTACT / 联系</span>
+      <h2>关于作者</h2>
+      <p>几何工坊由星恬制作与维护，欢迎交流、报错与提建议</p>
+    </div>
+    <div class="contact-grid reveal">
+      <button class="contact-card" type="button" data-copy="2433165914" title="点击复制 QQ 号">
+        <span class="c-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-message"/></svg></span>
+        <span class="c-name">QQ</span>
+        <span class="c-desc">2433165914</span>
+        <span class="c-sub">点击复制</span>
+      </button>
+      <a class="contact-card" href="mailto:2433165914@qq.com">
+        <span class="c-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-mail"/></svg></span>
+        <span class="c-name">QQ 邮箱</span>
+        <span class="c-desc">2433165914@qq.com</span>
+      </a>
+      <a class="contact-card" href="https://github.com/Estheria-star" target="_blank" rel="noopener">
+        <span class="c-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-github"/></svg></span>
+        <span class="c-name">GitHub 主页</span>
+        <span class="c-desc">@Estheria-star</span>
+      </a>
+      <a class="contact-card" href="https://github.com/Estheria-star/geostudio" target="_blank" rel="noopener">
+        <span class="c-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-git-branch"/></svg></span>
+        <span class="c-name">项目仓库</span>
+        <span class="c-desc">Estheria-star/geostudio</span>
+      </a>
+      <a class="contact-card" href="https://space.bilibili.com/3494370703575552" target="_blank" rel="noopener">
+        <span class="c-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bilibili"/></svg></span>
+        <span class="c-name">哔哩哔哩</span>
+        <span class="c-desc">个人主页</span>
+      </a>
     </div>
   </div>
 </section>
@@ -5149,6 +5172,14 @@ function objReadout(o, solid) {
   }
   return h;
 }
+/* 选中面板里的"名称"编辑行（最直观的改名入口：选中即见） */
+function selNameRow(o) {
+  return '<div class="sel-name-row">' +
+    '<span class="snr-type">' + esc(typeLabel(o)) + '</span>' +
+    '<input class="ne-input" type="text" maxlength="10" data-rename-id="' + o.id + '" value="' + esc(o.name || '') + '" title="直接修改名称（回车或点击别处生效）" aria-label="重命名">' +
+    '<span class="swatch" style="background:' + o.color + '"></span>' +
+    '</div>';
+}
 function renderSel() {
   var info = $('sel-info');
   if (!info) return;
@@ -5163,6 +5194,7 @@ function renderSel() {
   /* 两条向量：自动关系判定 */
   if (sel.length === 2 && sel[0].type === 'vector' && sel[1].type === 'vector') {
     var A0 = sel[0], B0 = sel[1];
+    h += selNameRow(A0) + selNameRow(B0);
     var rel = G.relationOfArrows(
       { o: { x: A0.ox, y: A0.oy, z: A0.oz || 0 }, d: { x: A0.dx, y: A0.dy, z: A0.dz || 0 } },
       { o: { x: B0.ox, y: B0.oy, z: B0.oz || 0 }, d: { x: B0.dx, y: B0.dy, z: B0.dz || 0 } });
@@ -5178,7 +5210,7 @@ function renderSel() {
   } else {
     sel.forEach(function (o, i) {
       if (i > 0) h += '<div style="height:1px;background:var(--line);margin:9px 0"></div>';
-      h += '<div style="margin-bottom:2px;font-size:12px;color:var(--t3)">' + esc(typeLabel(o)) + ' · <span style="color:' + o.color + '">' + esc(o.name) + '</span></div>';
+      h += selNameRow(o);
       h += objReadout(o, solid);
     });
   }
@@ -5747,6 +5779,26 @@ function bind() {
     var o = row && Scene.byId(parseInt(row.dataset.id, 10));
     if (o) startRename(row, o);
   });
+  /* 选中面板中的名称编辑（回车 / 失焦生效） */
+  $('sel-info').addEventListener('change', function (e) {
+    var inp = e.target && e.target.closest ? e.target.closest('.ne-input') : null;
+    if (!inp) return;
+    var o = Scene.byId(parseInt(inp.dataset.renameId, 10));
+    if (!o) return;
+    var v = inp.value.trim();
+    if (v && v !== o.name) {
+      if (renameObj(o, v)) toast('已重命名为 ' + v, 'ok');
+      else renderSel();
+    } else {
+      inp.value = o.name || '';
+    }
+  });
+  $('sel-info').addEventListener('keydown', function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains('ne-input') && e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
   /* 参数拖动全局降密度 */
   $('param-list').addEventListener('pointerdown', function () { G.quality = 'fast'; });
   bindParamEvents();
@@ -6051,6 +6103,24 @@ Array.prototype.forEach.call(document.querySelectorAll('.faq-item'), function (i
     }, 900);
   });
 })();
+
+/* ============================================================
+   6.5 联系方式（QQ 点击复制）
+   ============================================================ */
+Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (el) {
+  el.addEventListener('click', function () {
+    var txt = el.getAttribute('data-copy') || '';
+    if (!txt) return;
+    function done() { if (G && G.toast) G.toast('QQ 号已复制：' + txt, 'ok'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done, function () {
+        if (G && G.toast) G.toast('复制失败，QQ 号：' + txt, 'warn');
+      });
+    } else if (G && G.toast) {
+      G.toast('QQ 号：' + txt, 'info');
+    }
+  });
+});
 
 /* ============================================================
    7. 页脚帮助入口
