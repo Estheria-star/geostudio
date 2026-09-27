@@ -525,6 +525,17 @@ canvas{display:block}
   background:var(--glass-2);border:1px solid var(--line);
   font-size:11.5px;color:var(--t2);line-height:1.5;
 }
+/* 坐标精确输入 */
+.coord-row{display:flex;gap:6px;margin-bottom:7px}
+.coord-item{flex:1;display:flex;align-items:center;gap:5px;min-width:0}
+.coord-item span{font-size:11px;color:var(--t3);font-family:var(--mono);flex:0 0 auto}
+.coord-input{
+  width:100%;min-width:0;padding:4px 6px;border-radius:7px;border:1px solid var(--line);
+  background:var(--glass-2);font-family:var(--mono);font-size:12px;color:var(--t1);outline:none;
+  appearance:textfield;-moz-appearance:textfield;
+}
+.coord-input::-webkit-outer-spin-button,.coord-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.coord-input:focus{border-color:var(--brand)}
 .ne-input{
   flex:1;min-width:0;padding:4px 8px;border-radius:7px;border:1px solid var(--line);
   background:var(--glass-2);font-family:var(--mono);font-size:12.5px;color:var(--t1);outline:none;
@@ -1164,7 +1175,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
       <table>
         <tr><td>平面模式</td><td>滚轮缩放（以指针为中心）、空白处拖拽平移、点击选中、拖顶点移动</td></tr>
         <tr><td>空间图形</td><td>立体模式的「几何体」面板顶部可<b>一键创建空间点 / 线段 / 直线 / 平面</b>，拖动顶点即可调整；也可以先建点、选中两点连线、三点定平面</td></tr>
-        <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 加拖拽或右键拖拽平移；<b>先点选几何体再拖动可移动它</b>（未选中时拖拽一律旋转）；双击复位视角</td></tr>
+        <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 或右键拖拽平移、双击复位视角；点选对象后拖动 = 在水平面内移动；<b>按住 Ctrl 拖动 = 竖直升降（调高度）</b>；坐标也可在右侧直接输入</td></tr>
         <tr><td>触摸屏</td><td>单指平移或旋转，双指捏合缩放，双指拖动平移</td></tr>
         <tr><td>符号输入</td><td>输入框下方有符号条：√ ² | | ! [ ] ≤ ≥ ° 等一键插入，手机上也顺手</td></tr>
         <tr><td>命名的点</td><td>直接写 <span class="mono">P(1, 2)</span> 即可命名为 P；对象列表里点铅笔图标（或双击名字）可随时改名，关联图形名自动跟随（△ABC 改 A 为 P → △PBC）</td></tr>
@@ -3460,15 +3471,18 @@ function proj(p) {
   var s = FOCAL / zc;
   return { x: SW / 2 + xc * s, y: SH / 2 - yc * s, depth: zc, s: s };
 }
-/* 屏幕射线与 z=0 平面交点（用于拖拽 z=0 上的对象） */
-function screenToZ0(sx, sy) {
+G.proj3 = proj;
+/* 屏幕射线与 z = 常量 平面交点（水平面内拖动：z 保持不变，手感可预期） */
+function screenToZPlane(sx, sy, z) {
   var xc = (sx - SW / 2) / FOCAL, yc = -(sy - SH / 2) / FOCAL;
   var ray = V.norm({ x: VM.f.x + xc * VM.r.x + yc * VM.u.x, y: VM.f.y + xc * VM.r.y + yc * VM.u.y, z: VM.f.z + xc * VM.r.z + yc * VM.u.z });
   if (Math.abs(ray.z) < 1e-6) return null;
-  var t = (0 - VM.eye.z) / ray.z;
+  var t = (z - VM.eye.z) / ray.z;
   if (t < 0) return null;
-  return { x: VM.eye.x + ray.x * t, y: VM.eye.y + ray.y * t, z: 0 };
+  return { x: VM.eye.x + ray.x * t, y: VM.eye.y + ray.y * t, z: z };
 }
+/* 屏幕射线与 z=0 平面交点 */
+function screenToZ0(sx, sy) { return screenToZPlane(sx, sy, 0); }
 function screenDeltaToWorld(dx, dy, depth) {
   var k = depth / FOCAL;
   return {
@@ -4470,6 +4484,8 @@ G.pointer3D = function (type, e, p) {
       if (hit && hit.type === 'point') {
         st3.kind = 'dragpt';
         st3.startWorld = { x: hit.x, y: hit.y, z: hit.z || 0 };
+        st3.planeZ = hit.z || 0;
+        st3.vertical = !!(e.ctrlKey || e.metaKey);   /* Ctrl 拖动 = 只调高度 */
         st3.pt = hit;
         st3.z0 = Math.abs(hit.z || 0) < 1e-9;
       } else if (hit && hit.type === 'solid' && Scene.isSel(hit.id)) {
@@ -4477,10 +4493,12 @@ G.pointer3D = function (type, e, p) {
         st3.kind = 'dragsolid';
         st3.solid = hit;
         st3.sx0 = hit.cx || 0; st3.sy0 = hit.cy || 0;
-        var base = screenToZ0(p.x, p.y);
-        st3.base = base;
+        st3.startZ = hit.cz || 0;
+        st3.vertical = !!(e.ctrlKey || e.metaKey);   /* Ctrl 拖动 = 竖直升降 */
+        st3.base = screenToZPlane(p.x, p.y, st3.startZ);
       }
       G.quality = 'fast';
+      G._lastDragKind = st3.kind; /* 诊断用：最近一次 3D 拖动的类型 */
     } else if (ptr3.size === 2) {
       var two = Array.from(ptr3.values());
       st3 = { kind: 'pinch3', d0: Math.hypot(two[0].x - two[1].x, two[0].y - two[1].y), dist0: cam.dist, mid0: { x: (two[0].x + two[1].x) / 2, y: (two[0].y + two[1].y) / 2 } };
@@ -4500,31 +4518,47 @@ G.pointer3D = function (type, e, p) {
       cam.ty = st3.ty - (dx * VM.r.y - dy * VM.u.y) * k * 0.9;
       cam.tz = st3.tz - (dx * VM.r.z - dy * VM.u.z) * k * 0.9;
     } else if (st3.kind === 'dragpt') {
-      var wp = st3.z0 ? screenToZ0(p.x, p.y) : null;
-      if (!wp) {
-        updateView();
-        var q0 = proj(st3.startWorld);
-        var dd = q0 ? screenDeltaToWorld(p.x - st3.x, p.y - st3.y, q0.depth) : { x: 0, y: 0, z: 0 };
-        wp = { x: st3.startWorld.x + dd.x, y: st3.startWorld.y + dd.y, z: st3.startWorld.z + dd.z };
+      updateView();
+      if (st3.vertical) {
+        /* Ctrl 拖动：只调高度（xy 不变），按投影关系跟手 */
+        var qv = proj(st3.startWorld);
+        var kv = (qv ? qv.depth : cam.dist) / FOCAL / Math.max(0.3, Math.cos(cam.pitch));
+        var nz = st3.startWorld.z - (p.y - st3.y) * kv;
+        st3.pt.z = Math.round(nz * 1e4) / 1e4;
+        G.flash(st3.pt.name + '   高度 z = ' + G.fmt(st3.pt.z));
+      } else {
+        /* 默认：在过该点的水平面内移动（z 保持不变，手感可预期） */
+        var wp = screenToZPlane(p.x, p.y, st3.planeZ);
+        if (wp) {
+          st3.pt.x = Math.round(wp.x * 1e4) / 1e4;
+          st3.pt.y = Math.round(wp.y * 1e4) / 1e4;
+        }
+        G.flash(st3.pt.name + '   (' + G.fmt(st3.pt.x) + ', ' + G.fmt(st3.pt.y) + ', ' + G.fmt(st3.pt.z || 0) + ')');
       }
-      if (wp) {
-        st3.pt.x = wp.x; st3.pt.y = wp.y; if (st3.z0) st3.pt.z = 0;
-        if (st3.pt._expr) {
-          st3.pt._expr = null;
-          if (!G._unbindNotice) {
-            G._unbindNotice = true;
-            setTimeout(function () { G._unbindNotice = false; }, 3200);
-            if (G.toast) G.toast('已解除参数绑定，该点现在可以自由拖动', 'info');
-          }
+      if (st3.pt._expr) {
+        st3.pt._expr = null;
+        if (!G._unbindNotice) {
+          G._unbindNotice = true;
+          setTimeout(function () { G._unbindNotice = false; }, 3200);
+          if (G.toast) G.toast('已解除参数绑定，该点现在可以自由拖动', 'info');
         }
       }
     } else if (st3.kind === 'dragsolid') {
-      var wp2 = screenToZ0(p.x, p.y);
-      if (wp2 && st3.base) {
-        st3.solid.cx = st3.sx0 + (wp2.x - st3.base.x);
-        st3.solid.cy = st3.sy0 + (wp2.y - st3.base.y);
-        st3.solid._built = null;
+      if (st3.vertical) {
+        /* Ctrl 拖动：竖直升降（xy 不变） */
+        var qs = proj({ x: st3.solid.cx || 0, y: st3.solid.cy || 0, z: st3.startZ + 1 });
+        var ks = (qs ? qs.depth : cam.dist) / FOCAL / Math.max(0.3, Math.cos(cam.pitch));
+        st3.solid.cz = Math.round((st3.startZ - (p.y - st3.y) * ks) * 1e4) / 1e4;
+      } else {
+        /* 默认：在底面所在高度（z = cz）的水平面内移动 */
+        var wp2 = screenToZPlane(p.x, p.y, st3.startZ);
+        if (wp2 && st3.base) {
+          st3.solid.cx = st3.sx0 + (wp2.x - st3.base.x);
+          st3.solid.cy = st3.sy0 + (wp2.y - st3.base.y);
+        }
       }
+      st3.solid._built = null;
+      G.flash('位置  (' + G.fmt(st3.solid.cx || 0) + ', ' + G.fmt(st3.solid.cy || 0) + ', ' + G.fmt(st3.solid.cz || 0) + ')');
     } else if (st3.kind === 'pinch3') {
       var two2 = Array.from(ptr3.values());
       if (two2.length >= 2) {
@@ -4603,7 +4637,7 @@ function toast(msg, kind) {
 }
 G.toast = toast;
 
-/* 画布底部小提示 */
+/* 画布底部小提示（也供 3D 拖动时实时显示坐标） */
 var flashTimer = null;
 function showFlash(msg) {
   var el = $('stage-flash');
@@ -4613,6 +4647,7 @@ function showFlash(msg) {
   clearTimeout(flashTimer);
   flashTimer = setTimeout(function () { el.classList.remove('show'); }, 2400);
 }
+G.flash = showFlash;
 
 /* ============================================================
    1. 模式切换
@@ -4628,7 +4663,7 @@ function setMode(m) {
   $('hud-mode').textContent = m === 'plane' ? '平面几何' : '立体几何';
   $('stage-tip').textContent = m === 'plane'
     ? '滚轮缩放 · 拖拽平移 · 连续点选可多选 · 拖顶点调整'
-    : '拖拽旋转 · 滚轮缩放 · 连续点选可多选 · 双击复位视角';
+    : '拖拽旋转 · 滚轮缩放 · 连续点选可多选 · Ctrl 拖拽调高度';
   $('input-func').placeholder = m === 'plane' ? 'y = a*sin(b*x)' : 'z = a*sin(x)*cos(y)';
   $('func-hint').innerHTML = m === 'plane'
     ? '支持 <code>y=f(x)</code>、<code>x=g(y)</code>、隐式方程 <code>F(x,y)=0</code>、极坐标 <code>r=f(θ)</code>、参数方程 <code>x=cos(t), y=sin(t)</code>'
@@ -5040,12 +5075,23 @@ function bindParamEvents() {
 function kv(k, v, cls) {
   return '<div class="kv"><span class="k">' + k + '</span><span class="v ' + (cls || '') + '">' + v + '</span></div>';
 }
+/* 坐标精确输入行（点 = x/y/z；几何体 = 位置 cx/cy/cz） */
+function coordEditor(o, axes, labels) {
+  labels = labels || axes;
+  return '<div class="coord-row">' + axes.map(function (ax, i) {
+    var v = o[ax];
+    if (v === undefined || v === null) v = 0;
+    return '<label class="coord-item"><span>' + esc(labels[i]) + '</span>' +
+      '<input class="coord-input" type="number" step="any" data-coord="' + o.id + ':' + ax + '" value="' + G.fmt(v) + '"></label>';
+  }).join('') + '</div>';
+}
 function objReadout(o, solid) {
   var h = '';
   if (o.type === 'point') {
-    h += kv('坐标', esc(G.fmtPt(o, solid)), 'brand');
+    h += coordEditor(o, solid ? ['x', 'y', 'z'] : ['x', 'y']);
     h += kv('到原点距离', esc(G.fmt(Math.hypot(o.x, o.y, o.z || 0))));
-    h += kv('位置', o._expr ? '随参数自动联动' : '可拖动');
+    if (o._expr) h += kv('联动', '随参数自动联动（手动改坐标会解除绑定）');
+    else h += kv('提示', solid ? '拖动移动；Ctrl 拖动调高度' : '拖动即可移动', '');
   } else if (o.type === 'vector') {
     var d = { x: o.dx, y: o.dy, z: o.dz || 0 };
     var len = V.len(d);
@@ -5150,13 +5196,14 @@ function objReadout(o, solid) {
     }
   } else if (o.type === 'solid') {
     var D = o.dims;
+    h += coordEditor(o, ['cx', 'cy', 'cz'], ['x', 'y', 'z']);
     var dimStr = Object.keys(D).map(function (k) { return k + ' = ' + D[k]; }).join('，');
     h += kv('尺寸', esc(dimStr), 'brand');
     var vol = G.volumeOf(o);
     if (vol) h += kv('体积', esc(G.fmt(vol.value)), 'ok');
     var sa = G.surfaceAreaOf(o);
     if (sa) h += kv('表面积', esc(G.fmt(sa.value)), 'ok');
-    h += kv('提示', '拖拽可移动位置');
+    h += kv('提示', '拖动移动；Ctrl 拖动调高度');
   }
   return h;
 }
@@ -5785,6 +5832,31 @@ function bind() {
   });
   $('sel-info').addEventListener('keydown', function (e) {
     if (e.target && e.target.classList && e.target.classList.contains('ne-input') && e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
+  /* 选中面板中的坐标编辑（点坐标 / 几何体位置，回车或失焦生效） */
+  $('sel-info').addEventListener('change', function (e) {
+    var inp = e.target && e.target.closest ? e.target.closest('.coord-input') : null;
+    if (!inp) return;
+    var seg = String(inp.dataset.coord || '').split(':');
+    var o = Scene.byId(parseInt(seg[0], 10));
+    var axis = seg[1];
+    if (!o || !axis) return;
+    var v = parseFloat(inp.value);
+    if (isFinite(v)) {
+      o[axis] = v;
+      if (o._expr) o._expr = null;       /* 手动改坐标 → 解除参数绑定（与拖动一致） */
+      if (o.type === 'solid') o._built = null;
+      G.emit('objects');
+      G.requestRender();
+      G.emit('changed');
+    }
+    renderSel();
+  });
+  $('sel-info').addEventListener('keydown', function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains('coord-input') && e.key === 'Enter') {
       e.preventDefault();
       e.target.blur();
     }
