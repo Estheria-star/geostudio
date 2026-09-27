@@ -1166,7 +1166,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
       <h4>三、图形与交互</h4>
       <table>
         <tr><td>平面模式</td><td>滚轮缩放（以指针为中心）、空白处拖拽平移、点击选中、拖顶点移动</td></tr>
-        <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 加拖拽平移、右键拖拽平移</td></tr>
+        <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 加拖拽或右键拖拽平移；<b>先点选几何体再拖动可移动它</b>（未选中时拖拽一律旋转）；双击复位视角</td></tr>
         <tr><td>触摸屏</td><td>单指平移或旋转，双指捏合缩放，双指拖动平移</td></tr>
         <tr><td>符号输入</td><td>输入框下方有符号条：√ ² | | ! [ ] ≤ ≥ ° 等一键插入，手机上也顺手</td></tr>
         <tr><td>选择</td><td>可同时选中最多 3 个对象；选中两点可连线、三点可定平面（立体模式）</td></tr>
@@ -3181,7 +3181,7 @@ canvas.addEventListener('pointerdown', function (e) {
   if (hit.kind === 'handle') {
     drag = { kind: 'handle', obj: hit.obj, handle: hit.handle, start: s2w(p.x, p.y) };
   } else if (hit.kind === 'object' && canDragObject(hit.obj)) {
-    drag = { kind: 'object', obj: hit.obj, last: s2w(p.x, p.y), snapshot: snapshotObj(hit.obj) };
+    drag = { kind: 'object', obj: hit.obj, last: s2w(p.x, p.y) };
   } else {
     drag = { kind: 'pan', startCX: view.cx, startCY: view.cy, start: p };
   }
@@ -3207,19 +3207,15 @@ function unbindPts(o) {
   (o.pids || []).forEach(function (id) { unbindExpr(Scene.byId(id)); });
   if (o.cid) unbindExpr(Scene.byId(o.cid));
 }
-function snapshotObj(o) {
-  if (o.type === 'point' || o.type === 'vector' || o.type === 'circle' || o.type === 'ellipse' || o.type === 'sector') return {};
-  var snap = [];
-  ptsOf(o).forEach(function (p) { snap.push({ p: p, x: p.x, y: p.y }); });
-  return { pts: snap };
-}
-function moveObject(o, dx, dy, snap) {
+/* 整体拖动：所有类型统一用「增量累积」（早前版本对图形用初值+单帧增量，导致拖不动） */
+function moveObject(o, dx, dy) {
   if (o.type === 'point') { o.x += dx; o.y += dy; }
   else if (o.type === 'vector') { o.ox += dx; o.oy += dy; }
-  else if (snap && snap.pts) snap.pts.forEach(function (s) { s.p.x = s.x + dx; s.p.y = s.y + dy; });
   else if (o.type === 'circle' || o.type === 'ellipse' || o.type === 'sector') {
     var c = Scene.byId(o.cid);
     if (c) { c.x += dx; c.y += dy; }
+  } else {
+    ptsOf(o).forEach(function (p) { p.x += dx; p.y += dy; });
   }
 }
 
@@ -3251,7 +3247,7 @@ canvas.addEventListener('pointermove', function (e) {
   } else if (drag.kind === 'object') {
     var w2_ = s2w(p.x, p.y);
     var dx = w2_.x - drag.last.x, dy = w2_.y - drag.last.y;
-    moveObject(drag.obj, dx, dy, drag.snapshot);
+    moveObject(drag.obj, dx, dy);
     drag.last = w2_;
     unbindPts(drag.obj);
   } else if (drag.kind === 'pinch') {
@@ -4433,7 +4429,8 @@ G.pointer3D = function (type, e, p) {
         st3.startWorld = { x: hit.x, y: hit.y, z: hit.z || 0 };
         st3.pt = hit;
         st3.z0 = Math.abs(hit.z || 0) < 1e-9;
-      } else if (hit && hit.type === 'solid') {
+      } else if (hit && hit.type === 'solid' && Scene.isSel(hit.id)) {
+        /* 先点选几何体，再拖动才会移动它；未选中时拖拽一律旋转视角 */
         st3.kind = 'dragsolid';
         st3.solid = hit;
         st3.sx0 = hit.cx || 0; st3.sy0 = hit.cy || 0;
@@ -4450,8 +4447,9 @@ G.pointer3D = function (type, e, p) {
     if (!st3) return;
     if (Math.hypot(p.x - st3.x, p.y - st3.y) > 4 && st3.moved !== undefined) st3.moved = true;
     if (st3.kind === 'rot') {
-      cam.yaw = st3.yaw + (p.x - st3.x) * 0.007;
-      cam.pitch = G.clamp(st3.pitch - (p.y - st3.y) * 0.006, -1.45, 1.45);
+      /* 拨转盘手感：向右拖 → 物体向右转；向下拖 → 物体朝自己滚（顶面转过来） */
+      cam.yaw = st3.yaw - (p.x - st3.x) * 0.007;
+      cam.pitch = G.clamp(st3.pitch + (p.y - st3.y) * 0.006, -1.45, 1.45);
     } else if (st3.kind === 'pan') {
       var dx = p.x - st3.x, dy = p.y - st3.y;
       var k = cam.dist / FOCAL;
@@ -4583,7 +4581,7 @@ function setMode(m) {
   $('hud-mode').textContent = m === 'plane' ? '平面几何' : '立体几何';
   $('stage-tip').textContent = m === 'plane'
     ? '滚轮缩放 · 拖拽平移 · 点击选中 · 拖顶点调整'
-    : '拖拽旋转 · 滚轮缩放 · Shift 拖拽平移 · 双击复位视角';
+    : '拖拽旋转 · 滚轮缩放 · 点选几何体后可拖动移动 · 双击复位视角';
   $('input-func').placeholder = m === 'plane' ? 'y = a*sin(b*x)' : 'z = a*sin(x)*cos(y)';
   $('func-hint').innerHTML = m === 'plane'
     ? '支持 <code>y=f(x)</code>、<code>x=g(y)</code>、隐式方程 <code>F(x,y)=0</code>、极坐标 <code>r=f(θ)</code>、参数方程 <code>x=cos(t), y=sin(t)</code>'
