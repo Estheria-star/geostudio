@@ -536,6 +536,11 @@ canvas{display:block}
 .obj-op svg{width:13px;height:13px}
 .obj-op:hover{background:var(--glass-3);color:var(--t1)}
 .obj-op:active{transform:scale(.9)}
+/* 对象列表内联重命名输入框 */
+.rename-input{
+  width:96px;padding:2px 7px;border-radius:6px;border:1px solid var(--brand);
+  background:var(--glass-2);font-family:var(--mono);font-size:12.4px;color:var(--t1);outline:none;
+}
 
 /* 画布舞台 */
 .stage{position:relative;min-width:0;overflow:hidden;background:linear-gradient(180deg,var(--canvas-bg-2),var(--canvas-bg))}
@@ -704,6 +709,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
     <symbol id="i-link" viewBox="0 0 24 24"><path d="m9 15 6-6"/><path d="M11 6l1-1a5 5 0 0 1 7 7l-1 1"/><path d="M13 18l-1 1a5 5 0 0 1-7-7l1-1"/></symbol>
     <symbol id="i-plane" viewBox="0 0 24 24"><path d="M4 9.5 12 4l8 5.5-8 5.5-8-5.5z"/><path d="m9 17.5 4 2.7 7-4.7"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></symbol>
     <symbol id="i-rotate3d" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></symbol>
   </defs>
 </svg>
@@ -1169,6 +1175,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
         <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 加拖拽或右键拖拽平移；<b>先点选几何体再拖动可移动它</b>（未选中时拖拽一律旋转）；双击复位视角</td></tr>
         <tr><td>触摸屏</td><td>单指平移或旋转，双指捏合缩放，双指拖动平移</td></tr>
         <tr><td>符号输入</td><td>输入框下方有符号条：√ ² | | ! [ ] ≤ ≥ ° 等一键插入，手机上也顺手</td></tr>
+        <tr><td>命名的点</td><td>直接写 <span class="mono">P(1, 2)</span> 即可命名为 P；对象列表里点铅笔图标（或双击名字）可随时改名，关联图形名自动跟随（△ABC 改 A 为 P → △PBC）</td></tr>
         <tr><td>选择</td><td>可同时选中最多 3 个对象；选中两点可连线、三点可定平面（立体模式）</td></tr>
       </table>
       <h4>四、默认约束（明确设定）</h4>
@@ -4668,7 +4675,8 @@ function addVecStr(str, quiet) {
   return o;
 }
 function mkp(name, x, y, z) {
-  var o = { type: 'point', mode: Scene.mode, name: name, x: x, y: y, z: z || 0, params: [] };
+  /* name 传 null 时自动命名（A、B、C…），图形顶点的默认命名走这里 */
+  var o = { type: 'point', mode: Scene.mode, name: name || G.namePoint(), x: x, y: y, z: z || 0, params: [] };
   if (Scene.mode === 'solid') o.mode = 'solid';
   Scene.add(o);
   return o;
@@ -4806,14 +4814,79 @@ function renderObjList() {
   list.innerHTML = objs.map(function (o) {
     return '<li class="obj-row' + (Scene.isSel(o.id) ? ' sel' : '') + '" data-id="' + o.id + '">' +
       '<span class="swatch" style="background:' + o.color + '"></span>' +
-      '<span class="name">' + esc(o.name || '') + '</span>' +
+      '<span class="name" title="双击可重命名">' + esc(o.name || '') + '</span>' +
       '<span class="type">' + esc(typeLabel(o)) + '</span>' +
       '<span class="ops">' +
+        '<button class="obj-op" data-op="rename" title="重命名">' + svgIc('i-edit') + '</button>' +
         '<button class="obj-op" data-op="eye" title="显示 / 隐藏">' + svgIc(o.visible ? 'i-eye' : 'i-eye-off') + '</button>' +
         '<button class="obj-op" data-op="del" title="删除">' + svgIc('i-trash') + '</button>' +
       '</span></li>';
   }).join('');
 }
+
+/* ============================================================
+   3.5 重命名（点、向量、图形、曲线都支持）
+   ============================================================ */
+/* 由顶点名自动合成的图形名（▼ 用于点名变更后同步） */
+function autoNameOf(g) {
+  var names = (g.pids || []).map(function (id) { var p = Scene.byId(id); return p ? p.name : '?'; });
+  if (g.type === 'poly') {
+    var prefix = { tri: '△', quad: '四边形', para: '平行四边形', rect: '矩形', rhomb: '菱形',
+      square: '正方形', trap: '梯形', polygon: '多边形' }[g.kind] || '';
+    return names.length ? prefix + names.join('') : null;
+  }
+  if (g.type === 'segment' || g.type === 'line') return names.length >= 2 ? names.join('') : null;
+  if (g.type === 'circle') { var c = Scene.byId(g.cid); return c ? '⊙' + c.name : null; }
+  return null;
+}
+function renameObj(o, newName) {
+  var old = o.name;
+  var v = String(newName || '').trim().slice(0, 10);
+  if (!v || v === old) return false;
+  /* 名字恰好是"自动合成"的关联图形，改名后同步更新（手改过的名字不动） */
+  var fix = [];
+  if (o.type === 'point') {
+    Scene.objs.forEach(function (g) {
+      if (g === o || !g.name) return;
+      var linked = (g.pids && g.pids.indexOf(o.id) >= 0) || g.cid === o.id;
+      if (linked && g.name === autoNameOf(g)) fix.push(g);
+    });
+  }
+  o.name = v;
+  fix.forEach(function (g) { var n2 = autoNameOf(g); if (n2) g.name = n2; });
+  G.emit('objects');
+  G.requestRender();
+  return true;
+}
+function startRename(row, o) {
+  if (!o || !row) return;
+  var nameEl = row.querySelector('.name');
+  if (!nameEl || nameEl.querySelector('input')) return;
+  var old = o.name || '';
+  nameEl.innerHTML = '<input class="rename-input" maxlength="10" value="' + esc(old) + '" aria-label="重命名">';
+  var inp = nameEl.querySelector('input');
+  inp.focus();
+  inp.select();
+  var done = false;
+  function finish(save) {
+    if (done) return;
+    done = true;
+    if (save) {
+      var v = inp.value.trim();
+      if (v && v !== old && renameObj(o, v)) toast('已重命名为 ' + v, 'ok');
+    }
+    renderAll();
+  }
+  inp.addEventListener('keydown', function (e) {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { finish(false); }
+  });
+  inp.addEventListener('blur', function () { finish(true); });
+  inp.addEventListener('click', function (e) { e.stopPropagation(); });
+  inp.addEventListener('dblclick', function (e) { e.stopPropagation(); });
+}
+G.renameObj = renameObj;
 
 /* ============================================================
    4. 参数滑块
@@ -5362,6 +5435,7 @@ function bind() {
       var o = Scene.byId(id);
       if (!o) return;
       if (op.dataset.op === 'del') { Scene.remove(id); toast('已删除 ' + o.name, 'info'); }
+      else if (op.dataset.op === 'rename') { startRename(row, o); return; }
       else { o.visible = !o.visible; G.emit('objects'); G.requestRender(); }
       renderAll();
       return;
@@ -5369,6 +5443,14 @@ function bind() {
     Scene.toggleSel(id, e.shiftKey);
     renderSel();
     renderObjList();
+  });
+  /* 双击名字也可重命名 */
+  $('obj-list').addEventListener('dblclick', function (e) {
+    var nameEl = e.target.closest('.name');
+    if (!nameEl) return;
+    var row = nameEl.closest('.obj-row');
+    var o = row && Scene.byId(parseInt(row.dataset.id, 10));
+    if (o) startRename(row, o);
   });
   /* 参数拖动全局降密度 */
   $('param-list').addEventListener('pointerdown', function () { G.quality = 'fast'; });
