@@ -488,6 +488,18 @@ canvas{display:block}
 .hint{margin-top:9px;font-size:12px;line-height:1.75;color:var(--t3)}
 .hint code{font-family:var(--mono);font-size:11px;padding:1px 5px;border-radius:5px;background:var(--glass-2);border:1px solid var(--line)}
 .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+/* 符号输入条（触屏友好，可横向滑动） */
+.sym-strip{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.sym-strip::-webkit-scrollbar{display:none}
+.sym-btn{
+  flex:0 0 auto;min-width:34px;height:30px;padding:0 9px;border-radius:9px;
+  border:1px solid var(--line);background:var(--glass);color:var(--t1);
+  font-family:var(--mono);font-size:12.5px;line-height:1;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:transform .18s var(--ease),opacity .18s var(--ease);
+}
+.sym-btn:hover{background:var(--glass-2)}
+.sym-btn:active{transform:scale(.92)}
 .chip{
   padding:5px 10px;border-radius:var(--r-pill);border:1px solid var(--line);background:transparent;
   color:var(--t2);font-size:11.8px;font-family:var(--mono);cursor:pointer;
@@ -824,6 +836,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
                 <input id="input-func" type="text" spellcheck="false" autocomplete="off" placeholder="y = a*sin(b*x)">
                 <button class="btn btn-primary btn-sm" id="btn-add-func" title="添加"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plus"/></svg></button>
               </div>
+              <div class="sym-strip" id="sym-func"></div>
               <div class="chips" id="func-chips"></div>
               <p class="hint" id="func-hint">支持 <code>y=f(x)</code>、<code>x=g(y)</code>、隐式方程 <code>F(x,y)=0</code>、极坐标 <code>r=f(θ)</code>、参数方程 <code>x=cos(t), y=sin(t)</code></p>
             </div>
@@ -833,11 +846,13 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
                 <input id="input-point" type="text" spellcheck="false" autocomplete="off" placeholder="A(1, 2)">
                 <button class="btn btn-primary btn-sm" id="btn-add-point" title="添加"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plus"/></svg></button>
               </div>
+              <div class="sym-strip" id="sym-point"></div>
               <div class="field-label" style="margin-top:16px"><span>向量</span></div>
               <div class="input-line">
                 <input id="input-vec" type="text" spellcheck="false" autocomplete="off" placeholder="u = (3, 4)">
                 <button class="btn btn-primary btn-sm" id="btn-add-vec" title="添加"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plus"/></svg></button>
               </div>
+              <div class="sym-strip" id="sym-vec"></div>
               <div class="chips" id="pt-chips"></div>
               <p class="hint">选中两条向量后自动判定 <code>垂直 / 平行 / 相交 / 重合</code>；立体模式下选中两点可连线、三点可定平面</p>
             </div>
@@ -1132,13 +1147,20 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
       </ol>
       <h4>二、表达式速查</h4>
       <table>
-        <tr><td>三角函数</td><td class="mono">sin cos tan cot sec csc，反函数 asin acos atan，双曲 sinh cosh tanh</td></tr>
-        <tr><td>对数指数</td><td class="mono">ln（自然对数）、lg（常用对数）、log(x, b)（以 b 为底）、sqrt、exp</td></tr>
-        <tr><td>其它函数</td><td class="mono">abs、floor、ceil、round、sign、min、max、atan2</td></tr>
-        <tr><td>常数</td><td class="mono">pi（或 π）、e（自然常数）</td></tr>
+        <tr><td>三角函数</td><td class="mono">sin cos tan cot sec csc；反三角 arcsin arccos arctan arccot（也可写 asin 等）；双曲 sinh cosh tanh</td></tr>
+        <tr><td>对数</td><td class="mono">ln、lg、log(x, b)；带底数可写 log₂(x) 或 log_2(x)</td></tr>
+        <tr><td>根号</td><td class="mono">√2、√(x+1)、∛8（也可写 sqrt / cbrt）</td></tr>
+        <tr><td>绝对值</td><td class="mono">|x|、|x| + |y|（成对出现；复杂嵌套请用 abs()）</td></tr>
+        <tr><td>取整（高斯函数）</td><td class="mono">[x]、⌊x⌋、⌈x⌉（不超取整 / 上取整）；也可写 floor / ceil / gauss / int</td></tr>
+        <tr><td>阶乘</td><td class="mono">5!、x!（整数精确；非整数自动用 Γ 函数平滑）</td></tr>
+        <tr><td>度数</td><td class="mono">sin(30°)、45°（自动换算弧度）</td></tr>
+        <tr><td>上标直接打</td><td class="mono">x²、x³、x⁻¹（等价于 x^2、x^3、x^-1）</td></tr>
+        <tr><td>常数</td><td class="mono">pi / π、e（自然常数）、∞</td></tr>
+        <tr><td>其它函数</td><td class="mono">abs、min、max、sign、exp、round、atan2</td></tr>
+        <tr><td>不等式</td><td class="mono">y &gt; x^2、x^2 + y^2 ≤ 4（画区域）；x^2 - a &gt; 0（求一元解集）；支持 &lt; &gt; ≤ ≥ ≠ 与 &lt;= &gt;= !=</td></tr>
         <tr><td>参数</td><td class="mono">a b c d f g h k 共 8 个，出现即生成滑块（e 已保留给自然常数）</td></tr>
-        <tr><td>省略乘号</td><td class="mono">2x、3sin(x)、πr、a(x+1) 都会自动补上乘号</td></tr>
-        <tr><td>输入示例</td><td class="mono">y = sin(x)；x^2/4 + y^2/9 = 1；r = 2*cos(θ)；x = cos(t), y = sin(t)</td></tr>
+        <tr><td>省略乘号</td><td class="mono">2x、3sin(x)、πr、2√3、2|x| 都会自动补上乘号</td></tr>
+        <tr><td>输入示例</td><td class="mono">y = sin(x)；|x| + |y| = 1；x^2/4 + y^2/9 = 1；r = 2*cos(θ)；x = cos(t), y = sin(t)</td></tr>
         <tr><td>立体曲面</td><td class="mono">立体模式下含 x 与 y 的表达式如 z = sin(x)*cos(y) 自动切为曲面</td></tr>
       </table>
       <h4>三、图形与交互</h4>
@@ -1146,6 +1168,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
         <tr><td>平面模式</td><td>滚轮缩放（以指针为中心）、空白处拖拽平移、点击选中、拖顶点移动</td></tr>
         <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 加拖拽平移、右键拖拽平移</td></tr>
         <tr><td>触摸屏</td><td>单指平移或旋转，双指捏合缩放，双指拖动平移</td></tr>
+        <tr><td>符号输入</td><td>输入框下方有符号条：√ ² | | ! [ ] ≤ ≥ ° 等一键插入，手机上也顺手</td></tr>
         <tr><td>选择</td><td>可同时选中最多 3 个对象；选中两点可连线、三点可定平面（立体模式）</td></tr>
       </table>
       <h4>四、默认约束（明确设定）</h4>
@@ -1223,9 +1246,72 @@ G.requestRender = function () { G.emit('render'); };
    参数：a b c d f g h k（8 个）
    ============================================================ */
 
+/* 预处理：Unicode 上标/下标 → 普通写法（x² → x^(2)，log₂ → log_2） */
+var SUP_MAP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+var SUB_MAP = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
+function preprocess(src) {
+  var s = String(src);
+  /* 上标序列 → ^(n)：x² → x^(2)，x⁻¹ → x^(-1) */
+  s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺]+/g, function (m) {
+    var neg = false, dig = '';
+    for (var i = 0; i < m.length; i++) {
+      var c = m[i];
+      if (c === '⁻') neg = true;
+      else if (c === '⁺') neg = false;
+      else dig += SUP_MAP[c];
+    }
+    return dig ? ('^(' + (neg ? '-' : '') + dig + ')') : m;
+  });
+  /* 对数的 Unicode 下标：log₂ → log_2 */
+  s = s.replace(/log([₀₁₂₃₄₅₆₇₈₉]+)/g, function (m, ds) {
+    var d = '';
+    for (var i = 0; i < ds.length; i++) d += SUB_MAP[ds[i]];
+    return 'log_' + d;
+  });
+  return s;
+}
+
+/* 扩展数学函数（编译时以内联符号 __F 调用） */
+function gammaFn(x) {
+  if (x < 0.5) return Math.PI / (Math.sin(Math.PI * x) * gammaFn(1 - x));
+  var g = 7;
+  var C = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
+    -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  x -= 1;
+  var a = C[0], t = x + g + 0.5;
+  for (var i = 1; i < g + 2; i++) a += C[i] / (x + i);
+  return Math.sqrt(2 * Math.PI) * Math.pow(t, x + 0.5) * Math.exp(-t) * a;
+}
+/* 阶乘：非负整数精确值；非整数走 Γ 函数（拖动参数时曲线平滑不断裂） */
+function factFn(n) {
+  if (typeof n !== 'number' || !isFinite(n)) return NaN;
+  if (n < -1e-9) {
+    if (Math.abs(n - Math.round(n)) < 1e-9) return NaN;
+    return gammaFn(n + 1);
+  }
+  if (Math.abs(n - Math.round(n)) < 1e-12) {
+    var k = Math.round(n);
+    if (k > 170) return Infinity;
+    var r = 1;
+    for (var i = 2; i <= k; i++) r *= i;
+    return r;
+  }
+  return gammaFn(n + 1);
+}
+var FUNCS = { fact: factFn, gamma: gammaFn };
+
+/* 整数吸附：消除 1e-12 级的浮点毛刺（log₁₀(1000) → 精确 3、sin(π) → 0） */
+G.tidy = function (v) {
+  if (typeof v !== 'number' || !isFinite(v)) return v;
+  var r = Math.round(v);
+  if (Math.abs(v - r) < 1e-12 * Math.max(1, Math.abs(r))) return r;
+  return v;
+};
+
 /* 函数名集合（用于隐式乘法判定） */
-var FN_NAMES = ['sin','cos','tan','cot','sec','csc','asin','acos','atan','atan2',
-  'sinh','cosh','tanh','ln','lg','log','log2','exp','sqrt','abs','floor','ceil','round','sign','min','max','pow'];
+var FN_NAMES = ['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'asin', 'acos', 'atan', 'atan2',
+  'arcsin', 'arccos', 'arctan', 'arccot', 'sinh', 'cosh', 'tanh', 'ln', 'lg', 'log', 'log2', 'exp',
+  'sqrt', 'cbrt', 'abs', 'floor', 'ceil', 'round', 'sign', 'min', 'max', 'pow', 'gauss', 'int', 'fact'];
 
 var JS_FN = {
   sin:'Math.sin', cos:'Math.cos', tan:'Math.tan', asin:'Math.asin', acos:'Math.acos',
@@ -1237,17 +1323,17 @@ var JS_FN = {
 var BUILTIN = {
   x:'x', y:'y', z:'z', t:'t',
   'θ':'th', 'theta':'th',
-  'pi':'Math.PI', 'π':'Math.PI', 'e':'Math.E', 'E':'Math.E'
+  'pi':'Math.PI', 'π':'Math.PI', 'e':'Math.E', 'E':'Math.E', '∞':'Infinity'
 };
 var PARAM_NAMES = ['a','b','c','d','f','g','h','k'];
 
-/* 词法分析 */
+/* 词法分析（支持 √ ∛ 绝对值 取整括号 阶乘 度数 关系符等特殊符号） */
 function tokenize(src) {
   var t = [], i = 0, n = src.length;
   while (i < n) {
     var c = src[i];
     if (c === ' ' || c === '\t') { i++; continue; }
-    if ((c >= '0' && c <= '9') || (c === '.' && src[i+1] >= '0' && src[i+1] <= '9')) {
+    if ((c >= '0' && c <= '9') || (c === '.' && src[i + 1] >= '0' && src[i + 1] <= '9')) {
       var j = i;
       while (j < n && ((src[j] >= '0' && src[j] <= '9') || src[j] === '.')) j++;
       var num = parseFloat(src.slice(i, j));
@@ -1261,10 +1347,33 @@ function tokenize(src) {
       t.push({ type: 'ident', v: src.slice(i, k) });
       i = k; continue;
     }
-    if (c === 'π' || c === 'θ' || c === 'ρ' || c === 'β' || c === 'α') {
+    if (c === 'π' || c === 'θ' || c === 'ρ' || c === 'β' || c === 'α' || c === '∞') {
       t.push({ type: 'ident', v: c }); i++; continue;
     }
+    /* 双字符关系符 */
+    var two = src.substr(i, 2);
+    if (two === '<=' || two === '>=' || two === '!=' || two === '==') {
+      t.push({ type: two === '==' ? '=' : two }); i += 2; continue;
+    }
     if ('+-*/^()'.indexOf(c) >= 0) { t.push({ type: c }); i++; continue; }
+    if (c === '[') { t.push({ type: '[' }); i++; continue; }
+    if (c === ']') { t.push({ type: ']' }); i++; continue; }
+    if (c === '⌊') { t.push({ type: '[' }); i++; continue; }
+    if (c === '⌋') { t.push({ type: ']' }); i++; continue; }
+    if (c === '⌈') { t.push({ type: '⌈' }); i++; continue; }
+    if (c === '⌉') { t.push({ type: '⌉' }); i++; continue; }
+    if (c === '|') { t.push({ type: '|' }); i++; continue; }
+    if (c === '√') { t.push({ type: '√' }); i++; continue; }
+    if (c === '∛') { t.push({ type: '∛' }); i++; continue; }
+    if (c === '°') { t.push({ type: '°' }); i++; continue; }
+    if (c === '!') {
+      if (src[i + 1] === '=') { t.push({ type: '!=' }); i += 2; }
+      else { t.push({ type: '!' }); i++; }
+      continue;
+    }
+    if (c === '<' || c === '>' || c === '=' || c === '≤' || c === '≥' || c === '≠') {
+      t.push({ type: c }); i++; continue;
+    }
     if (c === ',' || c === '，') { t.push({ type: ',' }); i++; continue; }
     if (c === '×' || c === '＊') { t.push({ type: '*' }); i++; continue; }
     if (c === '÷') { t.push({ type: '/' }); i++; continue; }
@@ -1274,28 +1383,32 @@ function tokenize(src) {
   return t;
 }
 
-/* 隐式乘法：2x、3sin(x)、πr、a(x+1)、x y 自动补乘号 */
+/* 隐式乘法：2x、3sin(x)、πr、a(x+1)、2√3、2|x| 自动补乘号
+   注：| 为成对符号，闭合的那个不参与被乘（避免 |x| 被拆成 x*|）；嵌套绝对值请用 abs() */
 function insertImplicitMul(toks) {
-  var out = [], i;
+  var out = [], i, barCount = 0;
   function canEnd(t) {
     if (!t) return false;
-    if (t.type === 'num' || t.type === ')') return true;
-    if (t.type === 'ident' && FN_NAMES.indexOf(t.v) < 0) return true; // 变量、常数可结束
+    if (t.type === 'num' || t.type === ')' || t.type === ']' || t.type === '⌉' || t.type === '!' || t.type === '°') return true;
+    if (t.type === 'ident' && FN_NAMES.indexOf(t.v.toLowerCase()) < 0 && !/^log_\d/i.test(t.v)) return true; // 变量、常数可结束
     return false;
   }
   function canStart(t) {
     if (!t) return false;
-    return t.type === 'num' || t.type === '(' || t.type === 'ident';
+    return t.type === 'num' || t.type === '(' || t.type === '[' || t.type === '⌈' || t.type === '√' || t.type === '∛' || t.type === '|' || t.type === 'ident';
   }
   for (i = 0; i < toks.length; i++) {
     var cur = toks[i], prev = out[out.length - 1];
-    if (prev && canEnd(prev) && canStart(cur)) out.push({ type: '*' });
+    var allowMul = !(cur.type === '|' && barCount % 2 === 1);
+    if (prev && canEnd(prev) && canStart(cur) && allowMul) out.push({ type: '*' });
     out.push(cur);
+    if (cur.type === '|') barCount++;
   }
   return out;
 }
 
-/* 语法分析（递归下降） */
+/* 语法分析（递归下降）
+   优先级：! 与 ° 为后缀（绑定紧邻单元）> ^ > 一元负号 > * / > + - */
 function parseTokens(toks) {
   var pos = 0;
   function peek() { return toks[pos]; }
@@ -1327,16 +1440,33 @@ function parseTokens(toks) {
       var v = unary();
       return op === '-' ? { t: 'op', op: '-', l: { t: 'num', v: 0 }, r: v } : v;
     }
+    /* 根号：√ 只作用于紧随的一个数字 / 变量 / 括号 */
+    if (peek() && (peek().type === '√' || peek().type === '∛')) {
+      var rt = next().type;
+      return { t: 'fn', name: rt === '√' ? 'sqrt' : 'cbrt', args: [atom()] };
+    }
     return power();
   }
   function power() {
-    var base = atom();
+    var base = postfix();
     if (peek() && peek().type === '^') {
       next();
       var ex = unary(); // 右结合，且允许 2^-3
       return { t: 'op', op: '^', l: base, r: ex };
     }
     return base;
+  }
+  /* 后缀：阶乘 ! 与度数 ° */
+  function postfix() {
+    var e = atom();
+    for (;;) {
+      var p = peek();
+      if (!p) break;
+      if (p.type === '!') { next(); e = { t: 'fn', name: 'fact', args: [e] }; continue; }
+      if (p.type === '°') { next(); e = { t: 'op', op: '*', l: e, r: { t: 'num', v: Math.PI / 180 } }; continue; }
+      break;
+    }
+    return e;
   }
   function atom() {
     var t = next();
@@ -1347,8 +1477,21 @@ function parseTokens(toks) {
       expect(')');
       return e;
     }
+    /* 取整括号 [x]（高斯函数）、⌊x⌋、⌈x⌉ */
+    if (t.type === '[') { var e2 = expr(); expect(']'); return { t: 'fn', name: 'floor', args: [e2] }; }
+    if (t.type === '⌈') { var e3 = expr(); expect('⌉'); return { t: 'fn', name: 'ceil', args: [e3] }; }
+    /* 绝对值 |x| */
+    if (t.type === '|') { var e4 = expr(); expect('|'); return { t: 'fn', name: 'abs', args: [e4] }; }
     if (t.type === 'ident') {
       var name = t.v.toLowerCase();
+      /* log_2(x)：以 2 为底的对数 */
+      var m = name.match(/^log_(\d+(?:\.\d+)?)$/);
+      if (m) {
+        expect('(');
+        var a0 = expr();
+        expect(')');
+        return { t: 'fn', name: 'log', args: [a0, { t: 'num', v: parseFloat(m[1]) }] };
+      }
       if (FN_NAMES.indexOf(name) >= 0) {
         expect('(');
         var args = [];
@@ -1393,6 +1536,13 @@ function emit(node, info) {
         case 'cot': return '(1/Math.tan(' + a[0] + '))';
         case 'sec': return '(1/Math.cos(' + a[0] + '))';
         case 'csc': return '(1/Math.sin(' + a[0] + '))';
+        case 'arcsin': return 'Math.asin(' + a[0] + ')';
+        case 'arccos': return 'Math.acos(' + a[0] + ')';
+        case 'arctan': return 'Math.atan(' + a[0] + ')';
+        case 'arccot': return '(Math.PI/2 - Math.atan(' + a[0] + '))';
+        case 'gauss': case 'int': return 'Math.floor(' + a[0] + ')';
+        case 'cbrt': return 'Math.cbrt(' + a[0] + ')';
+        case 'fact': return '__F.fact(' + a[0] + ')';
         case 'log':
           if (a.length === 1) return 'Math.log10(' + a[0] + ')';
           return '(Math.log(' + a[0] + ')/Math.log(' + a[1] + '))';
@@ -1405,20 +1555,21 @@ function emit(node, info) {
   throw new Error('表达式编译失败');
 }
 
-/* 编译表达式 → 可求值对象 */
+/* 编译表达式 → 可求值对象（先经 preprocess 处理 Unicode 上下标等） */
 G.compileExpr = function (src) {
-  var toks = insertImplicitMul(tokenize(src));
+  var toks = insertImplicitMul(tokenize(preprocess(src)));
   var ast = parseTokens(toks);
   var info = { vars: {}, params: {} };
   var code = emit(ast, info);
-  var fn = new Function('x', 'y', 'z', 't', 'th', 'P', 'return (' + code + ');');
+  var fn = new Function('x', 'y', 'z', 't', 'th', 'P', '__F', 'return (' + code + ');');
   var o = {
     src: src, code: code,
     vars: Object.keys(info.vars),
     params: Object.keys(info.params),
-    /* 求值：ctx 缺省为 0，P 为参数取值表 */
+    /* 求值：ctx 缺省为 0，P 为参数取值表，__F 为扩展函数库（阶乘等） */
     eval: function (x, y, z, t, th, P) {
-      return fn(x || 0, y || 0, z || 0, t || 0, th || 0, P || {});
+      var v = fn(x || 0, y || 0, z || 0, t || 0, th || 0, P || {}, FUNCS);
+      return G.tidy(v);
     }
   };
   return o;
@@ -1435,6 +1586,38 @@ function splitEq(s) {
   }
   return [null, s];
 }
+/* 顶层关系符查找（= < > ≤ ≥ ≠ <= >= !=），返回 {l, op, r} 或 null */
+function findTopRelation(s) {
+  var depth = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s[i];
+    if (c === '(' || c === '（' || c === '[' || c === '⌊' || c === '⌈') depth++;
+    else if (c === ')' || c === '）' || c === ']' || c === '⌋' || c === '⌉') depth--;
+    else if (depth === 0) {
+      var two = s.substr(i, 2);
+      if (two === '<=' || two === '>=') return { l: s.slice(0, i), op: two, r: s.slice(i + 2) };
+      if (two === '!=') return { l: s.slice(0, i), op: '≠', r: s.slice(i + 2) };
+      if (c === '<' || c === '>' || c === '=' || c === '≤' || c === '≥' || c === '≠') {
+        return { l: s.slice(0, i), op: c, r: s.slice(i + 1) };
+      }
+    }
+  }
+  return null;
+}
+/* 不等式满足判定（F(x) op 0 形式） */
+var INEQ = {
+  '<': function (v) { return v < 0; },
+  '<=': function (v) { return v <= 0; },
+  '≤': function (v) { return v <= 0; },
+  '>': function (v) { return v > 0; },
+  '>=': function (v) { return v >= 0; },
+  '≥': function (v) { return v >= 0; },
+  '≠': function (v) { return Math.abs(v) > 1e-9; }
+};
+/* 关系符是否含等号（解集开闭判定用） */
+function opClosed(op) { return op === '<=' || op === '>=' || op === '≤' || op === '≥'; }
+G.INEQ = INEQ;
+G.opClosed = opClosed;
 /* 顶层按分隔符切分 */
 function splitTop(s, seps) {
   var out = [], depth = 0, last = 0;
@@ -1473,7 +1656,14 @@ G.parseEquation = function (src, mode) {
     }
     throw new Error('若要输入参数方程请写成 x=(...), y=(...) 的形式');
   }
-  var a = splitEq(s), L = a[0] ? a[0].trim() : null, R = a[1].trim();
+  /* 不等式：< > ≤ ≥ ≠ 等关系符走独立分支 */
+  var rel = findTopRelation(s);
+  if (rel && rel.op !== '=') {
+    return parseInequality(rel.l.trim(), rel.op, rel.r.trim(), s, mode);
+  }
+  var L = rel ? rel.l.trim() : null;
+  var R = (rel ? rel.r : s).trim();
+  if (rel && !L) throw new Error('关系符左边不能为空');
   if (!L) { L = 'y'; } // 无等号默认 y =
   var cR;
   if (L === 'y') {
@@ -1522,12 +1712,37 @@ function forbid(compiled, names, msg) {
 }
 function impObj(cL, cR, display) {
   var code = '(' + cL.code + ')-(' + cR.code + ')';
-  var fn = new Function('x', 'y', 'z', 't', 'th', 'P', 'return (' + code + ');');
+  var fn = new Function('x', 'y', 'z', 't', 'th', 'P', '__F', 'return (' + code + ');');
   return {
     kind: 'implicit', display: display,
     params: uniq(cL.params.concat(cR.params)),
-    eval: function (x, y, z, t, th, P) { return fn(x, y, z, t, th, P || {}); }
+    eval: function (x, y, z, t, th, P) { return G.tidy(fn(x, y, z, t, th, P || {}, FUNCS)); }
   };
+}
+
+/* 不等式：含 y 走区域填充（ineqRegion）；只含 x 走一元解集（ineq1）；无变量为恒真/恒假 */
+function parseInequality(L, op, R, display, mode) {
+  var cL = G.compileExpr(L), cR = G.compileExpr(R);
+  forbid(cL, ['z'], '不等式里不能出现 z');
+  forbid(cR, ['z'], '不等式里不能出现 z');
+  forbid(cL, ['t', 'θ', 'theta'], '不等式里不能出现 t 或 θ');
+  forbid(cR, ['t', 'θ', 'theta'], '不等式里不能出现 t 或 θ');
+  var code = '(' + cL.code + ')-(' + cR.code + ')';
+  var fn = new Function('x', 'y', 'z', 't', 'th', 'P', '__F', 'return (' + code + ');');
+  var ev = function (x, y, z, t, th, P) { return G.tidy(fn(x || 0, y || 0, z || 0, t || 0, th || 0, P || {}, FUNCS)); };
+  var vars = uniq(cL.vars.concat(cR.vars));
+  var hasX = vars.indexOf('x') >= 0, hasY = vars.indexOf('y') >= 0;
+  /* fn 统一包装成 { eval } 对象，与其它曲线（compileExpr 产物）保持一致 */
+  var base = { fn: { eval: ev }, eval: ev, op: op, params: uniq(cL.params.concat(cR.params)), display: display };
+  if (!hasX && !hasY) {
+    base.kind = 'ineq0';
+    base.truth = INEQ[op](ev(0, 0, 0, 0, 0, {}));
+    base.tip = base.truth ? '恒成立' : '恒不成立';
+    return base;
+  }
+  if (hasY) { base.kind = 'ineqRegion'; return base; }
+  base.kind = 'ineq1';
+  return base;
 }
 
 /* 解析点输入：A(1,2) / (1,2) / 1,2 / P(1,2,3) / Q(a, 2b) */
@@ -2315,6 +2530,142 @@ function drawObjName(o, P) {
   else tag(o.name, pos.x, pos.y, o.color, { center: true, dx: 0, dy: -10 });
 }
 
+/* ============================================================
+   3.5 不等式：区域填充与一元解集
+   ============================================================ */
+function hexRgb(hex) {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+/* 区域填充：低分辨率 mask + 双线性放大（边界自然柔化） */
+function drawIneqRegion(o, P) {
+  var cell = (G.quality === 'fast') ? 12 : 8;
+  var cw = Math.ceil(W / cell) + 1, ch = Math.ceil(H / cell) + 1;
+  var mask = document.createElement('canvas');
+  mask.width = cw; mask.height = ch;
+  var mc = mask.getContext('2d');
+  var img = mc.createImageData(cw, ch);
+  var rgb = hexRgb(o.color);
+  var test = G.INEQ[o.op] || function (v) { return v < 0; };
+  var d = img.data, i, j;
+  for (j = 0; j < ch; j++) {
+    for (i = 0; i < cw; i++) {
+      var wp = s2w(i * cell + cell / 2, j * cell + cell / 2);
+      var v = o.fn.eval(wp.x, wp.y, 0, 0, 0, P);
+      if (isFinite(v) && test(v)) {
+        var idx = (j * cw + i) * 4;
+        d[idx] = rgb[0]; d[idx + 1] = rgb[1]; d[idx + 2] = rgb[2]; d[idx + 3] = 255;
+      }
+    }
+  }
+  mc.putImageData(img, 0, 0);
+  ctx.save();
+  ctx.globalAlpha = 0.15 + (Scene.isSel(o.id) ? 0.08 : 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(mask, 0, 0, cw * cell, ch * cell);
+  ctx.restore();
+}
+/* 不等式边界（虚线） */
+function drawIneqBorder(o, P) {
+  ctx.save();
+  ctx.strokeStyle = o.color;
+  ctx.lineWidth = Scene.isSel(o.id) ? 2.6 : 1.8;
+  ctx.setLineDash([7, 5]);
+  curveImplicit(o, P);
+  ctx.restore();
+}
+/* 一元不等式：虚曲线 + x 轴解集高亮 + 根点 */
+function drawIneq1(o, P) {
+  var b = viewBounds();
+  /* F(x) 参考曲线（淡虚线） */
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  ctx.strokeStyle = o.color;
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([4, 4]);
+  curveExplicitY(o, P);
+  ctx.restore();
+  /* 解集 */
+  var res = G.solveIneq1(o, P);
+  o._solution = res;
+  var y0 = w2s(0, 0).y;
+  ctx.save();
+  ctx.strokeStyle = o.color;
+  ctx.lineWidth = Scene.isSel(o.id) ? 6 : 4.5;
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.92;
+  res.segs.forEach(function (s) {
+    var a = isFinite(s[0]) ? s[0] : b.x0, e = isFinite(s[1]) ? s[1] : b.x1;
+    a = Math.max(a, b.x0 - 1); e = Math.min(e, b.x1 + 1);
+    if (e <= a) return;
+    var pa = w2s(a, 0), pb = w2s(e, 0);
+    ctx.beginPath(); ctx.moveTo(pa.x, y0); ctx.lineTo(pb.x, y0); ctx.stroke();
+  });
+  /* 根点（临界值） */
+  ctx.fillStyle = C().pointFill;
+  ctx.globalAlpha = 1;
+  res.roots.forEach(function (r) {
+    if (r < b.x0 - 0.5 || r > b.x1 + 0.5) return;
+    var s = w2s(r, 0);
+    ctx.beginPath(); ctx.arc(s.x, y0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = o.color; ctx.stroke();
+    tag(G.fmt(r, 3), s.x, y0, o.color, { center: true, dy: 26 });
+  });
+  ctx.restore();
+}
+/* 数值求解一元不等式 F(x) op 0 */
+G.solveIneq1 = function (o, P) {
+  P = P || G.paramMap();
+  var b = viewBounds();
+  var x0 = view.cx - (b.x1 - b.x0) * 1.5, x1 = view.cx + (b.x1 - b.x0) * 1.5;
+  var n = G.quality === 'fast' ? 700 : 1400;
+  var test = G.INEQ[o.op] || function (v) { return v < 0; };
+  var roots = [], prevX = null, prevV = null, i;
+  for (i = 0; i <= n; i++) {
+    var x = x0 + (x1 - x0) * i / n;
+    var v = o.fn.eval(x, 0, 0, 0, 0, P);
+    if (!isFinite(v)) { prevX = null; prevV = null; continue; }
+    if (prevV !== null) {
+      if (prevV === 0) roots.push(prevX);
+      else if (prevV * v < 0) {
+        var lo = prevX, hi = x, flo = prevV;
+        for (var it = 0; it < 50; it++) {
+          var mid = (lo + hi) / 2, fm = o.fn.eval(mid, 0, 0, 0, 0, P);
+          if (!isFinite(fm)) break;
+          if (fm === 0 || hi - lo < 1e-12) { lo = hi = mid; break; }
+          if (flo * fm < 0) hi = mid; else { lo = mid; flo = fm; }
+        }
+        roots.push((lo + hi) / 2);
+      }
+    }
+    prevX = x; prevV = v;
+  }
+  roots = roots.filter(function (r, k) { return k === 0 || Math.abs(r - roots[k - 1]) > 1e-6; });
+  var closed = G.opClosed(o.op);
+  var bounds = [-Infinity].concat(roots, [Infinity]);
+  var segs = [];
+  for (i = 0; i < bounds.length - 1; i++) {
+    var a = bounds[i], e = bounds[i + 1];
+    var mid = a === -Infinity ? (e === Infinity ? 0 : e - 1) : (e === Infinity ? a + 1 : (a + e) / 2);
+    var mv = o.fn.eval(mid, 0, 0, 0, 0, P);
+    if (isFinite(mv) && test(mv)) segs.push([a, e]);
+  }
+  return { segs: segs, roots: roots, closed: closed, count: roots.length };
+};
+/* 解集文字（高中习惯写法） */
+G.ineq1Text = function (res) {
+  if (!res) return '未计算';
+  if (!res.segs.length) return '在本视图扫描范围内无解';
+  if (res.segs.length === 1 && res.segs[0][0] === -Infinity && res.segs[0][1] === Infinity) return '全体实数 ℝ';
+  var cl = res.closed;
+  return res.segs.map(function (s) {
+    var a = s[0], e = s[1];
+    if (a === -Infinity) return 'x ' + (cl ? '≤ ' : '< ') + G.fmt(e);
+    if (e === Infinity) return 'x ' + (cl ? '≥ ' : '> ') + G.fmt(a);
+    return G.fmt(a) + (cl ? ' ≤ x ≤ ' : ' < x < ') + G.fmt(e);
+  }).join('   或   ');
+};
+
 /* 选中对象的控制点（手柄） */
 function handlesOf(o) {
   var hs = [];
@@ -2742,7 +3093,7 @@ function hitTest(sx, sy, P) {
         var sx2 = w2s(wx, w.y).x;
         if (Math.abs(sx - sx2) < 10) return { kind: 'object', obj: o };
       }
-    } else if (o.kind === 'implicit') {
+    } else if (o.kind === 'implicit' || o.kind === 'ineqRegion') {
       /* 距离近似：|F| / |∇F| */
       var F0 = o.eval(w.x, w.y, 0, 0, 0, P);
       if (isFinite(F0)) {
@@ -2751,6 +3102,18 @@ function hitTest(sx, sy, P) {
         var gy = (o.eval(w.x, w.y + hp, 0, 0, 0, P) - o.eval(w.x, w.y - hp, 0, 0, 0, P)) / (2 * hp);
         var gl = Math.hypot(gx, gy);
         if (gl > 1e-9 && Math.abs(F0) / gl * view.scale < 11) return { kind: 'object', obj: o };
+      }
+    } else if (o.kind === 'ineq1') {
+      /* 一元不等式：x 轴上的解集段可点选 */
+      var res1 = o._solution || G.solveIneq1(o, P);
+      var y0i = w2s(0, 0).y;
+      if (Math.abs(sy - y0i) < 14) {
+        for (var si = 0; si < res1.segs.length; si++) {
+          var sa = res1.segs[si][0], se = res1.segs[si][1];
+          if (w.x >= (isFinite(sa) ? sa : -1e12) && w.x <= (isFinite(se) ? se : 1e12)) {
+            return { kind: 'object', obj: o };
+          }
+        }
       }
     } else {
       /* 极坐标 / 参数方程：采样最近点 */
@@ -2970,6 +3333,9 @@ function doRender() {
   var P = G.paramMap();
   drawGrid();
   var objs = visibleObjs();
+  /* 不等式区域填充（背景层，位于网格之上、曲线之下） */
+  objs.filter(function (o) { return o.type === 'func' && o.kind === 'ineqRegion'; })
+    .forEach(function (o) { drawIneqRegion(o, P); });
   /* 分层绘制 */
   objs.forEach(function (o) {
     if (o.type === 'poly' || o.type === 'circle' || o.type === 'ellipse' || o.type === 'sector') { /* 填充层先画 */ }
@@ -2981,7 +3347,12 @@ function doRender() {
       else if (o.type === 'ellipse') drawEllipse(o, P);
       else drawSector(o, P);
     });
-  objs.filter(function (o) { return o.type === 'func'; }).forEach(function (o, i) { o._labelRow = i; drawCurve(o, P); });
+  objs.filter(function (o) { return o.type === 'func'; }).forEach(function (o, i) {
+    o._labelRow = i;
+    if (o.kind === 'ineqRegion') drawIneqBorder(o, P);
+    else if (o.kind === 'ineq1') drawIneq1(o, P);
+    else drawCurve(o, P);
+  });
   objs.filter(function (o) { return o.type === 'segment'; }).forEach(function (o) { drawSegmentLike(o, P, false); });
   objs.filter(function (o) { return o.type === 'line'; }).forEach(function (o) { drawSegmentLike(o, P, true); });
   objs.filter(function (o) { return o.type === 'vector'; }).forEach(function (o) { drawVector(o, P); });
@@ -3411,7 +3782,15 @@ function lines2DIn3D(o, P) {
   var R = 8;
   if (o.type === 'func') {
     var N = (G.quality === 'fast') ? 140 : 280, i;
-    if (o.kind === 'explicitY') {
+    if (o.kind === 'ineq1') {
+      /* 一元不等式：在 z=0 的 x 轴上画出解集段 */
+      var res1 = G.solveIneq1(o, P);
+      res1.segs.forEach(function (s) {
+        var a = isFinite(s[0]) ? Math.max(s[0], -R) : -R;
+        var e = isFinite(s[1]) ? Math.min(s[1], R) : R;
+        if (e > a) out.push([{ x: a, y: 0, z: 0.002 }, { x: e, y: 0, z: 0.002 }]);
+      });
+    } else if (o.kind === 'explicitY') {
       var seg = [], prev = null;
       for (i = 0; i <= N; i++) {
         var x = -R + 2 * R * i / N;
@@ -3435,8 +3814,8 @@ function lines2DIn3D(o, P) {
         seg2.push({ x: px, y: py, z: 0 });
       }
       if (seg2.length > 1) out.push(seg2);
-    } else if (o.kind === 'implicit') {
-      /* 世界空间 marching squares（简化，输出短线段折线） */
+    } else if (o.kind === 'implicit' || o.kind === 'ineqRegion') {
+      /* 世界空间 marching squares（简化，输出短线段折线）；不等式区域只画边界 */
       var n2 = 90, h = 2 * R / n2, ii, jj;
       var vals = [];
       for (jj = 0; jj <= n2; jj++) {
@@ -4258,7 +4637,7 @@ function addFuncStr(str, quiet) {
     if (!parsed.fn.vars.length) throw new Error('曲面表达式需要包含 x 或 y');
   } else {
     o = { type: 'func', mode: Scene.mode, kind: parsed.kind, name: G.nameOf('f', 'func'), params: parsed.params, display: parsed.display };
-    ['fn', 'xFn', 'yFn', 'eval', 'tip'].forEach(function (k) { if (parsed[k] !== undefined) o[k] = parsed[k]; });
+    ['fn', 'xFn', 'yFn', 'eval', 'tip', 'op', 'truth'].forEach(function (k) { if (parsed[k] !== undefined) o[k] = parsed[k]; });
   }
   Scene.add(o);
   if (!quiet) toast('已添加 ' + parsed.display, 'ok');
@@ -4408,7 +4787,8 @@ function createSolid(kind) {
 function typeLabel(o) {
   if (o.type === 'solid') return G.SOLID_LABEL[o.kind] || '几何体';
   if (o.type === 'func') {
-    return { explicitY: '函数', explicitX: '函数', implicit: '方程', polar: '极坐标', param: '参数方程' }[o.kind] || '曲线';
+    return { explicitY: '函数', explicitX: '函数', implicit: '方程', polar: '极坐标', param: '参数方程',
+      ineqRegion: '区域', ineq1: '不等式', ineq0: '命题' }[o.kind] || '曲线';
   }
   if (o.type === 'surface') return '曲面';
   if (o.type === 'poly') return o.pids.length === 3 ? '三角形' : '多边形';
@@ -4579,6 +4959,20 @@ function objReadout(o, solid) {
       h += kv('θ 范围', '0 至 2π');
     } else if (o.kind === 'param') {
       h += kv('t 范围', '-2π 至 2π');
+    } else if (o.kind === 'ineqRegion') {
+      h += kv('类型', '二元不等式 · 区域填充', 'brand');
+      h += kv('判定', esc('满足 F(x, y) ' + o.op + ' 0 的点集'));
+      h += kv('边界', '虚线为 F(x, y) = 0');
+    } else if (o.kind === 'ineq1') {
+      h += kv('类型', '一元不等式', 'brand');
+      var ires = G.solveIneq1(o, G.paramMap());
+      h += kv('解集', esc(G.ineq1Text(ires)), 'ok');
+      if (ires.roots.length) {
+        h += kv('临界点', esc(ires.roots.slice(0, 6).map(function (r) { return G.fmt(r); }).join('、')));
+      }
+      h += kv('说明', '数值解集，随参数实时更新（' + (G.opClosed(o.op) ? '含端点' : '不含端点') + '）');
+    } else if (o.kind === 'ineq0') {
+      h += kv('判定', o.truth ? '恒成立' : '恒不成立', o.truth ? 'ok' : 'warn');
     }
   } else if (o.type === 'surface') {
     h += kv('表达式', esc(o.display), 'brand');
@@ -4776,6 +5170,8 @@ var SAMPLES = {
     { id: 'p-trig', name: '三角函数图像', build: function () { addFuncStr('y = a*sin(b*x + c)'); } },
     { id: 'p-ellipse', name: '椭圆与离心率', build: function () { addFuncStr('x^2/a^2 + y^2/b^2 = 1'); } },
     { id: 'p-inter', name: '圆与直线相交', build: function () { addFuncStr('x^2 + y^2 = 25'); addFuncStr('y = k*x + 3'); } },
+    { id: 'p-ineq', name: '不等式区域：y ≥ x² - a', build: function () { addFuncStr('y ≥ x^2 - a'); } },
+    { id: 'p-ineq1', name: '一元不等式解集：x² - a > 0', build: function () { addFuncStr('x^2 - a > 0'); } },
     { id: 'p-vec', name: '向量关系实验室', build: function () { addVecStr('u = (a, b)'); addVecStr('v = (c, 2)'); } },
     { id: 'p-liss', name: '参数方程：李萨如曲线', build: function () { addFuncStr('x = sin(3t), y = sin(4t)'); } }
   ],
@@ -4833,16 +5229,64 @@ function loadSample(id) {
 }
 
 /* ============================================================
-   8. 快捷输入 chips
+   8. 快捷输入：符号条 + 示例 chips
    ============================================================ */
+/* 符号条数据：d=显示文字，i=插入文本，c=光标回退位数（光标停在括号内） */
+var SYMS = {
+  'sym-func': [
+    { d: '√', i: '√(', c: 0 }, { d: '∛', i: '∛(', c: 0 },
+    { d: 'x²', i: '^2' }, { d: 'x³', i: '^3' },
+    { d: '| |', i: '||', c: 1 }, { d: '!', i: '!' }, { d: '[ ]', i: '[]', c: 1 },
+    { d: 'π', i: 'π' }, { d: 'θ', i: 'θ' }, { d: '°', i: '°' }, { d: '∞', i: '∞' },
+    { d: '≤', i: '≤' }, { d: '≥', i: '≥' }, { d: '≠', i: '≠' }, { d: '<', i: '<' }, { d: '>', i: '>' },
+    { d: 'ln(', i: 'ln(', c: 0 }, { d: 'lg(', i: 'lg(', c: 0 }, { d: 'log₂(', i: 'log₂(', c: 0 },
+    { d: 'sin(', i: 'sin(', c: 0 }, { d: 'cot(', i: 'cot(', c: 0 },
+    { d: 'arcsin(', i: 'arcsin(', c: 0 }
+  ],
+  'sym-point': [
+    { d: '√', i: '√(', c: 0 }, { d: 'π', i: 'π' }, { d: '°', i: '°' },
+    { d: '| |', i: '||', c: 1 }, { d: '!', i: '!' }, { d: '²', i: '^2' },
+    { d: '(', i: '(' }, { d: ')', i: ')' }, { d: ',', i: ', ' }, { d: '-', i: '-' }
+  ],
+  'sym-vec': [
+    { d: '√', i: '√(', c: 0 }, { d: 'π', i: 'π' }, { d: '| |', i: '||', c: 1 },
+    { d: '!', i: '!' }, { d: '²', i: '^2' },
+    { d: '(', i: '(' }, { d: ')', i: ')' }, { d: ',', i: ', ' }, { d: '-', i: '-' }
+  ]
+};
+function renderSymbols() {
+  Object.keys(SYMS).forEach(function (sid) {
+    var el = $(sid);
+    if (!el) return;
+    el.innerHTML = SYMS[sid].map(function (s, i) {
+      return '<button type="button" class="sym-btn" data-sym="' + sid + '" data-i="' + i + '" title="插入 ' + esc(s.d) + '">' + esc(s.d) + '</button>';
+    }).join('');
+  });
+}
+var SYM_TARGET = { 'sym-func': 'input-func', 'sym-point': 'input-point', 'sym-vec': 'input-vec' };
+function insertSymbol(sid, idx) {
+  var s = SYMS[sid] && SYMS[sid][idx];
+  var input = $(SYM_TARGET[sid] || 'input-func');
+  if (!s || !input) return;
+  input.focus();
+  var v = input.value;
+  var st = (input.selectionStart === null || input.selectionStart === undefined) ? v.length : input.selectionStart;
+  var en = (input.selectionEnd === null || input.selectionEnd === undefined) ? v.length : input.selectionEnd;
+  input.value = v.slice(0, st) + s.i + v.slice(en);
+  var pos = st + s.i.length - (s.c || 0);
+  try { input.setSelectionRange(pos, pos); } catch (err) { /* 忽略 */ }
+  input.focus();
+}
+
 var CHIPS = {
   plane: {
-    func: ['y = a*x + b', 'y = a*sin(b*x + c)', 'y = a*x^2 + b*x + c', 'x^2/a^2 + y^2/b^2 = 1', 'y = k/x', 'r = 2*cos(θ)', 'x = cos(t), y = sin(t)'],
-    pt: ['A(1, 2)', 'B(-1, 3)', 'u = (3, 4)', 'v = (-4, 3)']
+    func: ['y = a*x + b', 'y = a*sin(b*x + c)', 'y = a*x^2 + b*x + c', 'x^2/a^2 + y^2/b^2 = 1',
+      'y ≥ x^2 - a', 'x^2 - a > 0', '|x| + |y| = 1', 'y = log₂(x)', 'r = 2*cos(θ)', 'x = cos(t), y = sin(t)'],
+    pt: ['A(1, 2)', 'B(√2, -1)', 'u = (3, 4)', 'v = (-4, 3)']
   },
   solid: {
     func: ['z = a*sin(x)*cos(y)', 'z = a*x^2 + b*y^2', 'z = x^2/4 - y^2/9', 'y = a*sin(b*x)'],
-    pt: ['P(1, 2, 3)', 'Q(-1, 1, 2)', 'v = (1, 2, 2)']
+    pt: ['P(1, 2, 3)', 'Q(-1, √2, 2)', 'v = (1, 2, 2)']
   }
 };
 function renderChips() {
@@ -4889,8 +5333,10 @@ function bind() {
   $('input-point').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('btn-add-point').click(); } });
   $('btn-add-vec').addEventListener('click', function () { try { addVecStr($('input-vec').value.trim()); $('input-vec').value = ''; renderAll(); } catch (e) { toast(e.message, 'warn'); } });
   $('input-vec').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('btn-add-vec').click(); } });
-  /* chips */
+  /* chips 与符号条 */
   document.addEventListener('click', function (e) {
+    var symBtn = e.target.closest('.sym-btn');
+    if (symBtn) { insertSymbol(symBtn.dataset.sym, parseInt(symBtn.dataset.i, 10)); return; }
     var chip = e.target.closest('.chip');
     if (chip) {
       var target = chip.dataset.fill === 'func' ? $('input-func') : $('input-point');
@@ -5013,6 +5459,7 @@ function closeMenus() { $('menu-samples').classList.remove('open'); }
    ============================================================ */
 function init() {
   bind();
+  renderSymbols();
   setMode('plane');
   /* 初始示例：函数图像（含参数） */
   try { loadSample('p-trig'); } catch (e) { /* 忽略 */ }
