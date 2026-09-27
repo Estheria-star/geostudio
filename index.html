@@ -701,6 +701,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
     <symbol id="i-message" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
     <symbol id="i-git-branch" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
     <symbol id="i-bilibili" viewBox="0 0 24 24"><path d="M7 4 9.5 7M17 4 14.5 7"/><rect x="3.5" y="7" width="17" height="12.5" rx="3.5"/><path d="M8.5 12v2.5M15.5 12v2.5"/></symbol>
+    <symbol id="i-seg" viewBox="0 0 24 24"><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="5.5" r="2"/><path d="m7 17 10-10"/></symbol>
   </defs>
 </svg>
 
@@ -892,6 +893,13 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
               <p class="hint">点击后在画布中央生成图形，拖动顶点或控制点即可调整；选中后一键求面积</p>
             </div>
             <div class="panel-pane hidden" id="pane-solid">
+              <div class="sect-label">空间基础图形</div>
+              <div class="shape-grid">
+                <button class="shape-btn" data-solidshape="point3"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-cross"/></svg>空间点</button>
+                <button class="shape-btn" data-solidshape="seg3"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-seg"/></svg>线段</button>
+                <button class="shape-btn" data-solidshape="line3"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-vec"/></svg>直线</button>
+                <button class="shape-btn" data-solidshape="plane3"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plane"/></svg>平面</button>
+              </div>
               <div class="sect-label">多面体</div>
               <div class="shape-grid">
                 <button class="shape-btn" data-solid="cube"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-box"/></svg>正方体</button>
@@ -915,7 +923,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
                 <button class="shape-btn" data-shape="square"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-square"/></svg>正方形</button>
                 <button class="shape-btn" data-shape="polygon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-hexagon"/></svg>多边形</button>
               </div>
-              <p class="hint">拖拽旋转视角、滚轮缩放、Shift 加拖拽平移；选中几何体一键求体积与表面积，选中两点可连线、三点可定平面</p>
+              <p class="hint">拖拽旋转视角、滚轮缩放、Shift 加拖拽平移；几何体可一键求体积与表面积，选中两点也能连线、三点定平面</p>
             </div>
           </div>
           <div class="obj-box">
@@ -1149,6 +1157,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid var(
       <h4>三、图形与交互</h4>
       <table>
         <tr><td>平面模式</td><td>滚轮缩放（以指针为中心）、空白处拖拽平移、点击选中、拖顶点移动</td></tr>
+        <tr><td>空间图形</td><td>立体模式的「几何体」面板顶部可<b>一键创建空间点 / 线段 / 直线 / 平面</b>，拖动顶点即可调整；也可以先建点、选中两点连线、三点定平面</td></tr>
         <tr><td>立体模式</td><td>拖拽旋转、滚轮缩放、Shift 加拖拽或右键拖拽平移；<b>先点选几何体再拖动可移动它</b>（未选中时拖拽一律旋转）；双击复位视角</td></tr>
         <tr><td>触摸屏</td><td>单指平移或旋转，双指捏合缩放，双指拖动平移</td></tr>
         <tr><td>符号输入</td><td>输入框下方有符号条：√ ² | | ! [ ] ≤ ≥ ° 等一键插入，手机上也顺手</td></tr>
@@ -4817,6 +4826,35 @@ function createSolid(kind) {
   toast('已创建' + G.SOLID_LABEL[kind] + '，选中后可调尺寸与体积', 'ok');
   renderAll();
 }
+/* 空间基础图形：一键直接创建（点 / 线段 / 直线 / 平面），顶点可拖拽调整 */
+function createSolidShape(kind) {
+  if (kind === 'point3') {
+    var p = mkp(null, 0, 0, 1.2);
+    Scene.setSel([p.id]);
+    toast('已创建空间点 ' + p.name + '，拖动即可移动', 'ok');
+  } else if (kind === 'seg3') {
+    var a = mkp(null, -2, -0.8, 1.0), b = mkp(null, 2, 0.8, 1.0);
+    var s = mkseg(a, b);
+    Scene.setSel([s.id]);
+    toast('已创建线段 ' + s.name + '（拖动两端点调整）', 'ok');
+  } else if (kind === 'line3') {
+    var a2 = mkp(null, -2, -1.2, 0.8), b2 = mkp(null, 2, 1.2, 1.4);
+    var l = mkseg(a2, b2);
+    l.type = 'line';
+    Scene.setSel([l.id]);
+    toast('已创建直线（拖动两个控制点调整方向）', 'ok');
+  } else if (kind === 'plane3') {
+    var A = mkp(null, -1.5, -1.5, 0), B = mkp(null, 1.5, -1.5, 0), C = mkp(null, 0, 1.5, 2);
+    var pl = { type: 'plane3', mode: 'solid', name: G.namePlane(), pids: [A.id, B.id, C.id] };
+    Scene.add(pl);
+    Scene.setSel([pl.id]);
+    toast('已创建平面 ' + pl.name + '（拖动三个顶点调整姿态）', 'ok');
+  } else {
+    return;
+  }
+  renderAll();
+  G.requestRender();
+}
 
 /* ============================================================
    3. 对象列表
@@ -5691,6 +5729,8 @@ function bind() {
     if (shapeBtn) { createShape(shapeBtn.dataset.shape); return; }
     var solidBtn = e.target.closest('[data-solid]');
     if (solidBtn) { createSolid(solidBtn.dataset.solid); return; }
+    var solidShapeBtn = e.target.closest('[data-solidshape]');
+    if (solidShapeBtn) { createSolidShape(solidShapeBtn.dataset.solidshape); return; }
     var actBtn = e.target.closest('[data-act]');
     if (actBtn) { runAction(actBtn.dataset.act); return; }
     if (!e.target.closest('.menu')) closeMenus();
