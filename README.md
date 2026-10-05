@@ -1,3 +1,5 @@
+> ⚠️ **本项目已归档为旧版**：新版「几何工坊」已全面升级（表达式引擎 / 几何构建 / AI 出图 / 语音输入），请访问新版 → **https://geometry.startian.top/**（仓库：[geometry](https://github.com/Estheria-star/geometry)）
+
 # 几何工坊 GeoStudio
 
 🧮 **在线使用 → https://geo.startian.top/**
